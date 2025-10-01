@@ -1,0 +1,9 @@
+#include "portal/micropython_portal.h"
+#include "win_hal.h"
+#include "trio_mphal.h"
+
+int main() {
+    set_hal_functions(win_hal_functions());
+
+    return start_upy();
+}

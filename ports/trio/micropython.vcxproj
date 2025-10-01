@@ -1,0 +1,149 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="14.0" DefaultTargets="Build">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{740F3C30-EB6C-4B59-9C50-AE4D5A4A9D12}</ProjectGuid>
+    <RootNamespace>micropython</RootNamespace>
+    <ReadOnlyProject>true</ReadOnlyProject>
+  </PropertyGroup>
+  <!-- <PropertyGroup>
+    <BuildInParallel>false</BuildInParallel>
+    <CL_MPCount>1</CL_MPCount>
+  </PropertyGroup> -->
+  <PropertyGroup>
+    <PreferredToolArchitecture>x86</PreferredToolArchitecture>
+    <TrackFileAccess>true</TrackFileAccess>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <!-- <ConfigurationType>StaticLibrary</ConfigurationType> -->
+    <!-- <ConfigurationType>Application</ConfigurationType> -->
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="msvc/common.props" />
+    <Import Project="msvc/debug.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="msvc/common.props" />
+    <Import Project="msvc/release.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="msvc/common.props" />
+    <Import Project="msvc/debug.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="msvc/common.props" />
+    <Import Project="msvc/release.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros">
+    <CustomPropsFile Condition="'$(CustomPropsFile)'==''">msvc/user.props</CustomPropsFile>
+    <TargetName>$(PyProg)</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <DisableSpecificWarnings>4034</DisableSpecificWarnings>
+      <!-- <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <AdditionalOptions>/showIncludes /verbosity:diagnostic %(AdditionalOptions)</AdditionalOptions> -->
+    </ClCompile>
+    <Link />
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <DisableSpecificWarnings>4034</DisableSpecificWarnings>
+      <!-- <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <AdditionalOptions>/showIncludes /verbosity:diagnostic %(AdditionalOptions)</AdditionalOptions> -->
+    </ClCompile>
+    <Link />
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <DisableSpecificWarnings>4034</DisableSpecificWarnings>
+      <!-- <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <AdditionalOptions>/showIncludes /verbosity:diagnostic %(AdditionalOptions)</AdditionalOptions> -->
+    </ClCompile>
+    <Link />
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <DisableSpecificWarnings>4034</DisableSpecificWarnings>
+      <!-- <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <AdditionalOptions>/showIncludes /verbosity:diagnostic %(AdditionalOptions)</AdditionalOptions> -->
+    </ClCompile>
+    <Link />
+  </ItemDefinitionGroup>
+  <Import Project="msvc/sources.props" />
+  <ItemGroup>
+    <ClCompile Include="@(PyCoreSource)" />
+    <ClCompile Include="@(PyExtModSource)" />
+    <ClCompile Include="$(PyBaseDir)shared\readline\*.c" />
+    <ClCompile Include="$(PyBaseDir)shared\runtime\pyexec.c" />
+    <ClCompile Include="$(PyBaseDir)ports\trio\*.c" />
+    <ClCompile Include="$(PyBaseDir)ports\trio\msvc\*.c" />
+    <ClCompile Include="$(PyBaseDir)ports\trio\portal\*.c" />
+    <ClCompile Include="$(PyBaseDir)examples\usercmodule\cexample\examplemodule.c" />
+    <!-- <ClCompile Include="$(PyBaseDir)ports\unix\gccollect.c"/> -->
+    <!-- <ClCompile Include="$(PyBaseDir)ports\unix\input.c" />
+    <ClCompile Include="$(PyBaseDir)ports\unix\main.c" /> -->
+    <ClCompile Include="$(PyVariantDir)*.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="@(PyCoreInclude)" />
+    <ClInclude Include="@(PyExtModInclude)" />
+    <ClInclude Include="$(PyBaseDir)ports\trio\*.h" />
+    <ClInclude Include="$(PyBaseDir)ports\trio\msvc\*.h" />
+    <ClInclude Include="$(PyBaseDir)ports\trio\portal\*.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="micropython.rc" />
+  </ItemGroup>
+  <Import Project="msvc/genhdr.targets" />
+  <Import Project="$(CustomPropsFile)" Condition="exists('$(CustomPropsFile)')" />
+  <Target Name="GenerateMicroPythonSources" BeforeTargets="BuildGenerateSources" DependsOnTargets="GenerateHeaders">
+    <!-- <Target Name="GenerateMicroPythonSources" BeforeTargets="BuildGenerateSources" DependsOnTargets="GenerateHeaders;FreezeModules"> -->
+  </Target>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

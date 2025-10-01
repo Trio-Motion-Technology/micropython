@@ -1,0 +1,200 @@
+/*
+ * This file is part of the MicroPython project, http://micropython.org/
+ *
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2013, 2014 Damien P. George
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+// options to control how MicroPython is built
+
+// Variant-specific definitions.
+#include "mpconfigvariant.h"
+#include "mpconfigtypes.h"
+
+#define MICROPY_CONFIG_ROM_LEVEL (MICROPY_CONFIG_ROM_LEVEL_MINIMUM)
+#define MICROPY_HEAP_SIZE      (65536)
+
+// #define MICROPY_LONGINT_IMPL (MICROPY_LONGINT_IMPL_MPZ)
+
+#define MICROPY_PY_ERRNO (0)
+
+#define MICROPY_ENABLE_COMPILER     (1)
+
+// #define MICROPY_QSTR_EXTRA_POOL           mp_qstr_frozen_const_pool
+#define MICROPY_ENABLE_GC                 (1)
+#define MICROPY_HELPER_REPL               (1)
+#define MICROPY_REPL_EVENT_DRIVEN         (0)
+// #define MICROPY_MODULE_FROZEN_MPY         (1)
+#define MICROPY_ENABLE_EXTERNAL_IMPORT    (1)
+
+#define MICROPY_ALLOC_PATH_MAX            (256)
+
+// Use the minimum headroom in the chunk allocator for parse nodes.
+#define MICROPY_ALLOC_PARSE_CHUNK_INIT    (16)
+
+// Disable all optional sys module features.
+#define MICROPY_PY_SYS_MODULES            (1)
+#define MICROPY_PY_SYS_EXIT               (0)
+#define MICROPY_PY_SYS_PATH               (0)
+#define MICROPY_PY_SYS_ARGV               (0)
+
+
+#define MICROPY_HW_BOARD_NAME "trio-unknown"
+#define MICROPY_HW_MCU_NAME "unknown-cpu"
+
+extern const struct _mp_print_t mp_stderr_print;
+
+#ifdef _MSC_VER
+#define MICROPY_GCREGS_SETJMP       (1)
+#define MICROPY_USE_INTERNAL_PRINTF (0)
+#endif
+
+#define MICROPY_ENABLE_EMERGENCY_EXCEPTION_BUF   (1)
+#define MICROPY_EMERGENCY_EXCEPTION_BUF_SIZE     (256)
+#define MICROPY_KBD_EXCEPTION       (1)
+
+#define MICROPY_PORT_INIT_FUNC      init()
+#define MICROPY_PORT_DEINIT_FUNC    deinit()
+
+// type definitions for the specific machine
+
+// #if defined(__MINGW32__) && defined(__LP64__)
+// typedef long mp_int_t; // must be pointer size
+// typedef unsigned long mp_uint_t; // must be pointer size
+// #elif defined(__MINGW32__) && defined(_WIN64)
+// #include <stdint.h>
+// typedef __int64 mp_int_t;
+// typedef unsigned __int64 mp_uint_t;
+// #define MP_SSIZE_MAX __INT64_MAX__
+// #elif defined(_MSC_VER) && defined(_WIN64)
+// typedef __int64 mp_int_t;
+// typedef unsigned __int64 mp_uint_t;
+// #else
+// // These are definitions for machines where sizeof(int) == sizeof(void*),
+// // regardless for actual size.
+// typedef int mp_int_t; // must be pointer size
+// typedef unsigned int mp_uint_t; // must be pointer size
+// #endif
+
+// typedef long suseconds_t;
+
+// Just assume Windows is little-endian - mingw32 gcc doesn't
+// define standard endianness macros.
+#define MP_ENDIANNESS_LITTLE (1)
+
+// // Cannot include <sys/types.h>, as it may lead to symbol name clashes
+// #if _FILE_OFFSET_BITS == 64 && !defined(__LP64__)
+// typedef long long mp_off_t;
+// #else
+// typedef long mp_off_t;
+// #endif
+
+#define MP_STATE_PORT               MP_STATE_VM
+
+#define MICROPY_MPHALPORT_H         "trio_mphal.h"
+
+// We need to provide a declaration/definition of alloca()
+// #include <malloc.h>
+
+// #include "realpath.h"
+// #include "init.h"
+
+#ifdef __GNUC__
+#define MP_NOINLINE __attribute__((noinline))
+#endif
+
+// MSVC specifics
+#ifdef _MSC_VER
+
+// Sanity check
+
+#if (_MSC_VER < 1800)
+    #error Can only build with Visual Studio 2013 toolset
+#endif
+
+
+// CL specific overrides from mpconfig
+
+#define MP_NORETURN                 __declspec(noreturn)
+#define MP_WEAK
+#define MP_NOINLINE                 __declspec(noinline)
+#define MP_ALWAYSINLINE             __forceinline
+#define MP_LIKELY(x)                (x)
+#define MP_UNLIKELY(x)              (x)
+#define MICROPY_PORT_CONSTANTS      { MP_ROM_QSTR(MP_QSTR_dummy), MP_ROM_PTR(NULL) } // can't have zero-sized array
+#ifdef _WIN64
+#define MP_SSIZE_MAX                _I64_MAX
+#else
+#define MP_SSIZE_MAX                _I32_MAX
+#endif
+
+// VC++ 12.0 fixes
+#if (_MSC_VER <= 1800)
+#define MICROPY_PY_MATH_ATAN2_FIX_INFNAN (1)
+#define MICROPY_PY_MATH_FMOD_FIX_INFNAN (1)
+#ifdef _WIN64
+#define MICROPY_PY_MATH_MODF_FIX_NEGZERO (1)
+#else
+#define MICROPY_PY_MATH_POW_FIX_NAN (1)
+#endif
+#endif
+
+// VC++ 2017 fixes
+#if (_MSC_VER < 1920)
+#define MICROPY_PY_MATH_COPYSIGN_FIX_NAN (1)
+#endif
+
+// CL specific definitions
+
+#ifndef __cplusplus
+#define restrict
+#define inline                      __inline
+#define alignof(t)                  __alignof(t)
+#endif
+#define PATH_MAX                    MICROPY_ALLOC_PATH_MAX
+#define S_ISREG(m)                  (((m) & S_IFMT) == S_IFREG)
+#define S_ISDIR(m)                  (((m) & S_IFMT) == S_IFDIR)
+// #ifdef _WIN64
+// #define SSIZE_MAX                   _I64_MAX
+// typedef __int64 ssize_t;
+// #else
+// #define SSIZE_MAX                   _I32_MAX
+// typedef int ssize_t;
+// #endif
+// typedef mp_off_t off_t;
+
+
+// Put static/global variables in sections with a known name
+// This used to be required for GC, not the case anymore but keep it as it makes the map file easier to inspect
+// For this to work this header must be included by all sources, which is the case normally
+#define MICROPY_PORT_DATASECTION "upydata"
+#define MICROPY_PORT_BSSSECTION "upybss"
+#pragma data_seg(MICROPY_PORT_DATASECTION)
+#pragma bss_seg(MICROPY_PORT_BSSSECTION)
+
+
+// System headers (needed e.g. for nlr.h)
+
+#include <stddef.h> // for NULL
+#include <assert.h> // for assert
+
+#endif
