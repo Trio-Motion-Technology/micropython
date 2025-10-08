@@ -39,9 +39,9 @@
 #define CHAR_CTRL_C (3)
 #endif
 
-void set_hal_functions_int(HalFunctions hal_functions);
+// void set_hal_functions_int(HalFunctions hal_functions);
 
-HalFunctions* get_hal_functions();
+// HalFunctions* get_hal_functions();
 
  // In lieu of a WFI(), slow down polling from being a tight loop.
  //
@@ -60,9 +60,9 @@ void mp_hal_set_interrupt_char(char c);
 void mp_hal_stdio_mode_raw(void);
 void mp_hal_stdio_mode_orig(void);
 
-static inline void mp_hal_delay_us(mp_uint_t us) {
-    usleep(us);
-}
+//static inline void mp_hal_delay_us(mp_uint_t us) {
+//    usleep(us);
+//}
 
 #define RAISE_ERRNO(err_flag, error_val) \
     { if (err_flag == -1) \
@@ -87,6 +87,12 @@ void mp_hal_move_cursor_back(unsigned int pos);
 void mp_hal_erase_line_from_cursor(unsigned int n_chars_to_erase);
 
 mp_uint_t mp_hal_ticks_cpu(void);
+void mp_hal_delay_ms(mp_uint_t ms);
+
+static inline void mp_hal_delay_us(mp_uint_t us) {
+   mp_hal_delay_ms(us / 1000);
+}
+
 
 
 #endif // !TRIO_MPHAL_H

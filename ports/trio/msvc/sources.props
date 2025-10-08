@@ -4,8 +4,10 @@
   <ItemGroup>
     <PyCoreSource Include="$(PyBaseDir)py\*.c" />
 
-    <PyCoreSource Remove="$(PyBaseDir)py\objmodule.c" />
-    <PyCoreSource Include="$(PyBaseDir)ports\trio\patch\*.c" />
+    <!-- <PyCoreSource Remove="$(PyBaseDir)py\objmodule.c" /> -->
+    <!-- <PyCoreSource Include="$(PyBaseDir)ports\trio\patch\*.c" /> -->
+
+    <!-- <PyCoreSource Remove="$(PyBaseDir)py\repl.c" /> -->
     
     <PyExtModSource Include="$(PyBaseDir)extmod\machine_mem.c" />
     <PyExtModSource Include="$(PyBaseDir)extmod\machine_pinbase.c" />

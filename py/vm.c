@@ -35,6 +35,8 @@
 #include "py/runtime.h"
 #include "py/bc0.h"
 #include "py/profile.h"
+#include "py/scope.h"
+#include "py/nlr.h"
 
 // *FORMAT-OFF*
 
@@ -211,6 +213,115 @@ MP_NOINLINE static mp_obj_t *build_slice_stack_allocated(byte op, mp_obj_t *sp, 
 }
 #endif
 
+#if MICROPY_STACKLESS
+#if !MICROPY_EMIT_BYTECODE_USES_QSTR_TABLE
+#error "MICROPY_EMIT_BYTECODE_USES_QSTR_TABLE must be enabled for debugging support"
+#endif
+void trio_debug_print_found_scope(mp_code_state_t* code_state, scope_t* scope) {
+   mp_obj_t* /*const*/ fastn;
+   size_t n_state = code_state->n_state;
+   fastn = &code_state->state[n_state - 1];
+
+    mp_code_state_t *unwind = code_state;
+    while (unwind != NULL) {
+        const byte* ip = unwind->fun_bc->bytecode;
+        MP_BC_PRELUDE_SIG_DECODE(ip);
+        MP_BC_PRELUDE_SIZE_DECODE(ip);
+        const byte* line_info_top = ip + n_info;
+        const byte* bytecode_start = ip + n_info + n_cell;
+        size_t bc = unwind->ip - bytecode_start;
+        qstr block_name = mp_decode_uint_value(ip);
+        for (size_t i = 0; i < 1 + n_pos_args + n_kwonly_args; ++i) {
+           ip = mp_decode_uint_skip(ip);
+        }
+
+        block_name = unwind->fun_bc->context->constants.qstr_table[block_name];
+        qstr source_file = unwind->fun_bc->context->constants.qstr_table[0];
+        
+        size_t source_line = mp_bytecode_get_source_line(ip, line_info_top, bc);
+        
+        mp_printf(&mp_plat_print, "%q[%q]@%d", source_file, block_name, source_line);
+        
+        unwind = unwind->prev;
+
+        if (unwind != NULL) {
+           mp_printf(&mp_plat_print, "<-");
+        }
+    }
+    mp_printf(&mp_plat_print, ":\n\r    ");
+
+    mp_printf(&mp_plat_print, "[");
+    for (int i = 0; i < scope->id_info_len; i++) {
+       if (i != 0) mp_printf(&mp_plat_print, ", ");
+
+       id_info_t* id = &scope->id_info[i];
+       /*if (id->kind == ID_INFO_KIND_LOCAL || id->kind == ID_INFO_KIND_FREE || id->kind == ID_INFO_KIND_CELL) {
+          mp_printf(&mp_plat_print, "%q @ %d : ", id->qst, id->local_num);
+       }
+       else {
+          mp_printf(&mp_plat_print, "%q @ G : ", id->qst);
+       }*/
+       
+       if (id->qst == MP_QSTR_) {
+          mp_printf(&mp_plat_print, "<unnamed>: ");
+       }
+       else {
+          mp_printf(&mp_plat_print, "%q: ", id->qst);
+       }
+
+       mp_obj_t obj_shared;
+       switch (id->kind) {
+       case ID_INFO_KIND_LOCAL:
+       case ID_INFO_KIND_FREE:
+          obj_shared = fastn[-(id->local_num)];
+          break;
+       case ID_INFO_KIND_CELL:
+          obj_shared = mp_obj_cell_get(fastn[-(id->local_num)]);
+          break;
+       case ID_INFO_KIND_GLOBAL_EXPLICIT:
+       case ID_INFO_KIND_GLOBAL_IMPLICIT:
+       case ID_INFO_KIND_GLOBAL_IMPLICIT_ASSIGNED:
+          nlr_buf_t nlr;
+          nlr.ret_val = NULL;
+          if (nlr_push(&nlr) == 0) {
+             obj_shared = mp_load_global(id->qst);
+          }
+          else {
+             obj_shared = MP_OBJ_NULL;
+          }
+          break;
+       };
+
+       if (obj_shared == MP_OBJ_NULL) {
+          mp_printf(&mp_plat_print, "undefined");
+       }
+       else {
+          mp_obj_print_helper(&mp_plat_print, obj_shared, PRINT_STR);
+       }
+    }
+    mp_printf(&mp_plat_print, "]\r\n");
+}
+
+void trio_debug_print_scope(mp_code_state_t* code_state) {
+   trio_scope_t* trio_scope = MP_STATE_VM(trio_scopes);
+
+   while (trio_scope != NULL) {
+      scope_t* scope = (scope_t*)trio_scope->scopes;
+
+      while (scope != NULL) {
+         if (scope->raw_code->fun_data == (void*) code_state->fun_bc->bytecode) {
+            trio_debug_print_found_scope(code_state, scope);
+            return;
+         }
+
+         scope = scope->next;
+      }
+
+      trio_scope = trio_scope->next;
+   }
+}
+#endif
+
 // fastn has items in reverse order (fastn[0] is local[0], fastn[-1] is local[1], etc)
 // sp points to bottom of stack which grows up
 // returns:
@@ -267,7 +378,7 @@ mp_vm_return_kind_t MICROPY_WRAP_MP_EXECUTE_BYTECODE(mp_execute_bytecode)(mp_cod
     #define RAISE(o) do { nlr_pop(); nlr.ret_val = MP_OBJ_TO_PTR(o); goto exception_handler; } while (0)
 
 #if MICROPY_STACKLESS
-run_code_state: ;
+   run_code_state: ; // Stackless jumps back to here
 #endif
 FRAME_ENTER();
 
@@ -322,7 +433,37 @@ outer_dispatch_loop:
 
             // loop to execute byte code
             for (;;) {
-dispatch_loop:
+            dispatch_loop:
+
+#if MICROPY_STACKLESS
+                if (MP_STATE_VM(trio_debug)) trio_debug_print_scope(code_state);
+                
+                //mp_code_state_t *unwind = code_state;
+                //while (unwind != NULL) {
+                //    const byte* ip = unwind->fun_bc->bytecode;
+                //    mp_printf(&mp_plat_print, "{%d}", ip);
+                //    MP_BC_PRELUDE_SIG_DECODE(ip);
+                //    MP_BC_PRELUDE_SIZE_DECODE(ip);
+                //    const byte* line_info_top = ip + n_info;
+                //    const byte* bytecode_start = ip + n_info + n_cell;
+                //    size_t bc = unwind->ip - bytecode_start;
+                //    qstr block_name = mp_decode_uint_value(ip);
+                //    for (size_t i = 0; i < 1 + n_pos_args + n_kwonly_args; ++i) {
+                //       ip = mp_decode_uint_skip(ip);
+                //    }
+
+                //    block_name = unwind->fun_bc->context->constants.qstr_table[block_name];
+                //    qstr source_file = unwind->fun_bc->context->constants.qstr_table[0];
+                //    
+                //    size_t source_line = mp_bytecode_get_source_line(ip, line_info_top, bc);
+                //    
+                //    mp_printf(&mp_plat_print, "%q[%q]@%d->", source_file, block_name, source_line);
+                //    
+                //    unwind = unwind->prev;
+                //}
+                //mp_printf(&mp_plat_print, "\r\n");
+#endif
+
                 #if MICROPY_OPT_COMPUTED_GOTO
                 DISPATCH();
                 #else

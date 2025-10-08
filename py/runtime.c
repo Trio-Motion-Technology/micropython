@@ -59,17 +59,20 @@
 #define DEBUG_OP_printf(...) (void)0
 #endif
 
-const mp_obj_module_t mp_module___main__ = {
-    .base = { &mp_type_module },
-    .globals = (mp_obj_dict_t *)&MP_STATE_VM(dict_main),
-};
-
-MP_REGISTER_MODULE(MP_QSTR___main__, mp_module___main__);
+// Removed to allow for state storage change
+//const mp_obj_module_t mp_module___main__ = {
+//    .base = { &mp_type_module },
+//    .globals = (mp_obj_dict_t *)&MP_STATE_VM(dict_main),
+//};
+//
+//MP_REGISTER_MODULE(MP_QSTR___main__, mp_module___main__);
 
 #define TYPE_HAS_ITERNEXT(type) (type->flags & (MP_TYPE_FLAG_ITER_IS_ITERNEXT | MP_TYPE_FLAG_ITER_IS_CUSTOM | MP_TYPE_FLAG_ITER_IS_STREAM))
 
 void mp_init(void) {
     qstr_init();
+    MP_STATE_VM(trio_debug) = false;
+    MP_STATE_VM(trio_scopes) = NULL;
 
     // no pending exceptions to start with
     MP_STATE_THREAD(mp_pending_exception) = MP_OBJ_NULL;
@@ -1764,7 +1767,7 @@ MP_NORETURN void mp_raise_OSError_with_filename(int errno_, const char *filename
     nlr_raise(mp_obj_exception_make_new(&mp_type_OSError, 2, 0, args));
 }
 
-#if MICROPY_STACK_CHECK || MICROPY_ENABLE_PYSTACK
+#if MICROPY_STACK_CHECK || MICROPY_ENABLE_PYSTACK || MICROPY_STACKLESS_STRICT
 MP_NORETURN void mp_raise_recursion_depth(void) {
     mp_raise_type_arg(&mp_type_RuntimeError, MP_OBJ_NEW_QSTR(MP_QSTR_maximum_space_recursion_space_depth_space_exceeded));
 }

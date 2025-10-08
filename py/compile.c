@@ -38,6 +38,7 @@
 #include "py/nativeglue.h"
 #include "py/persistentcode.h"
 #include "py/smallint.h"
+#include "py/gc.h"
 
 #if MICROPY_ENABLE_COMPILER
 
@@ -3467,6 +3468,49 @@ static void scope_compute_things(scope_t *scope) {
             scope->num_locals += num_free;
         }
     }
+
+    /*const char* simple_name = qstr_str(scope->simple_name);
+
+    for (int i = 0; i < scope->id_info_len; i++) {
+       id_info_t* id = &scope->id_info[i];
+
+       bool is_undecided = id->kind == ID_INFO_KIND_UNDECIDED;
+       bool is_local = id->kind == ID_INFO_KIND_LOCAL;
+       bool is_free = id->kind == ID_INFO_KIND_FREE;
+       bool is_cell = id->kind == ID_INFO_KIND_CELL;
+       bool is_global_explicit = id->kind == ID_INFO_KIND_GLOBAL_EXPLICIT;
+       bool is_global_implicit = id->kind == ID_INFO_KIND_GLOBAL_IMPLICIT;
+       bool is_global_implicit_assigned = id->kind == ID_INFO_KIND_GLOBAL_IMPLICIT_ASSIGNED;
+       bool is_param = id->flags & ID_FLAG_IS_PARAM;
+
+       uint16_t local_num = id->local_num;
+       const char* name = qstr_str(id->qst);
+       
+
+
+       int x = 0;
+    }*/
+
+    /*mp_printf(&mp_plat_print, "[");
+    for (int i = 0; i < scope->id_info_len; i++) {
+       id_info_t* id = &scope->id_info[i];
+       if (id->kind == ID_INFO_KIND_LOCAL || id->kind == ID_INFO_KIND_FREE || id->kind == ID_INFO_KIND_CELL) {
+          mp_printf(&mp_plat_print, "%q @ %d, ", id->qst, id->local_num);
+       }
+       else {
+          mp_printf(&mp_plat_print, "%q @ G, ", id->qst);
+       }
+    }
+    mp_printf(&mp_plat_print, "] in ");
+    scope_t* unwind = scope;
+    while (unwind != NULL) {
+
+       mp_printf(&mp_plat_print, "%q->", unwind->simple_name);
+
+       unwind = unwind->parent;
+    }
+    mp_printf(&mp_plat_print, "%q\r\n", source_file);*/
+
 }
 
 #if !MICROPY_EXPOSE_MP_COMPILE_TO_RAW_CODE
@@ -3663,11 +3707,24 @@ void mp_compile_to_raw_code(mp_parse_tree_t *parse_tree, qstr source_file, bool 
     mp_parse_tree_clear(parse_tree);
 
     // free the scopes
-    for (scope_t *s = module_scope; s;) {
-        scope_t *next = s->next;
-        scope_free(s);
-        s = next;
+    if (MP_STATE_VM(trio_debug)) { //... or store them for debugging
+        trio_scope_t** ct_scope = &MP_STATE_VM(trio_scopes);
+        while (*ct_scope != NULL) *ct_scope = (*ct_scope)->next;
+        *ct_scope = m_malloc(sizeof(trio_scope_t)); // lives forever (as long as the Python process runs)
+        trio_scope_t* t_scope = *ct_scope;
+        
+        t_scope->scopes = module_scope;
+        t_scope->next = NULL;
+        t_scope->source_file = source_file;
     }
+    else {
+        for (scope_t* s = module_scope; s;) {
+           scope_t* next = s->next;
+            scope_free(s);
+            s = next;
+        }
+    }
+    
 
     if (comp->compile_error != MP_OBJ_NULL) {
         nlr_raise(comp->compile_error);

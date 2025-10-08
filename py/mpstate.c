@@ -30,4 +30,7 @@
 mp_dynamic_compiler_t mp_dynamic_compiler = {0};
 #endif
 
+// State is thread-local and accessing it is externed to Trio code
+#ifdef MP_CROSS_COMPILER_BUILD
 mp_state_ctx_t mp_state_ctx;
+#endif

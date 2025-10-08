@@ -244,91 +244,93 @@ static void print_completions(const mp_print_t *print,
     mp_print_str(print, "\n");
 }
 
+// Disabled to allow for state storage change
 size_t mp_repl_autocomplete(const char *str, size_t len, const mp_print_t *print, const char **compl_str) {
-    // scan backwards to find start of "a.b.c" chain
-    const char *org_str = str;
-    const char *top = str + len;
-    for (const char *s = top; --s >= str;) {
-        if (!(unichar_isalpha(*s) || unichar_isdigit(*s) || *s == '_' || *s == '.')) {
-            ++s;
-            str = s;
-            break;
-        }
-    }
+    return 0;
+    // // scan backwards to find start of "a.b.c" chain
+    //const char *org_str = str;
+    //const char *top = str + len;
+    //for (const char *s = top; --s >= str;) {
+    //    if (!(unichar_isalpha(*s) || unichar_isdigit(*s) || *s == '_' || *s == '.')) {
+    //        ++s;
+    //        str = s;
+    //        break;
+    //    }
+    //}
 
-    // begin search in outer global dict which is accessed from __main__
-    mp_obj_t obj = MP_OBJ_FROM_PTR(&mp_module___main__);
-    mp_obj_t dest[2];
+    //// begin search in outer global dict which is accessed from __main__
+    //mp_obj_t obj = MP_OBJ_FROM_PTR(&mp_module___main__);
+    //mp_obj_t dest[2];
 
-    const char *s_start;
-    size_t s_len;
+    //const char *s_start;
+    //size_t s_len;
 
-    for (;;) {
-        // get next word in string to complete
-        s_start = str;
-        while (str < top && *str != '.') {
-            ++str;
-        }
-        s_len = str - s_start;
+    //for (;;) {
+    //    // get next word in string to complete
+    //    s_start = str;
+    //    while (str < top && *str != '.') {
+    //        ++str;
+    //    }
+    //    s_len = str - s_start;
 
-        if (str == top) {
-            // end of string, do completion on this partial name
-            break;
-        }
+    //    if (str == top) {
+    //        // end of string, do completion on this partial name
+    //        break;
+    //    }
 
-        // a complete word, lookup in current object
-        qstr q = qstr_find_strn(s_start, s_len);
-        if (q == MP_QSTRnull) {
-            // lookup will fail
-            return 0;
-        }
-        mp_load_method_protected(obj, q, dest, true);
-        obj = dest[0]; // attribute, method, or MP_OBJ_NULL if nothing found
+    //    // a complete word, lookup in current object
+    //    qstr q = qstr_find_strn(s_start, s_len);
+    //    if (q == MP_QSTRnull) {
+    //        // lookup will fail
+    //        return 0;
+    //    }
+    //    mp_load_method_protected(obj, q, dest, true);
+    //    obj = dest[0]; // attribute, method, or MP_OBJ_NULL if nothing found
 
-        if (obj == MP_OBJ_NULL) {
-            // lookup failed
-            return 0;
-        }
+    //    if (obj == MP_OBJ_NULL) {
+    //        // lookup failed
+    //        return 0;
+    //    }
 
-        // skip '.' to move to next word
-        ++str;
-    }
+    //    // skip '.' to move to next word
+    //    ++str;
+    //}
 
-    // after "import", suggest built-in modules
-    static const char import_str[] = "import ";
-    if (len >= 7 && !memcmp(org_str, import_str, 7)) {
-        obj = MP_OBJ_NULL;
-    }
+    //// after "import", suggest built-in modules
+    //static const char import_str[] = "import ";
+    //if (len >= 7 && !memcmp(org_str, import_str, 7)) {
+    //    obj = MP_OBJ_NULL;
+    //}
 
-    // look for matches
-    size_t match_len;
-    qstr q_first, q_last;
-    const char *match_str =
-        find_completions(s_start, s_len, obj, &match_len, &q_first, &q_last);
+    //// look for matches
+    //size_t match_len;
+    //qstr q_first, q_last;
+    //const char *match_str =
+    //    find_completions(s_start, s_len, obj, &match_len, &q_first, &q_last);
 
-    // nothing found
-    if (q_first == 0) {
-        // If there're no better alternatives, and if it's first word
-        // in the line, try to complete "import".
-        if (s_start == org_str && s_len > 0 && s_len < sizeof(import_str) - 1) {
-            if (memcmp(s_start, import_str, s_len) == 0) {
-                *compl_str = import_str + s_len;
-                return sizeof(import_str) - 1 - s_len;
-            }
-        }
-        return 0;
-    }
+    //// nothing found
+    //if (q_first == 0) {
+    //    // If there're no better alternatives, and if it's first word
+    //    // in the line, try to complete "import".
+    //    if (s_start == org_str && s_len > 0 && s_len < sizeof(import_str) - 1) {
+    //        if (memcmp(s_start, import_str, s_len) == 0) {
+    //            *compl_str = import_str + s_len;
+    //            return sizeof(import_str) - 1 - s_len;
+    //        }
+    //    }
+    //    return 0;
+    //}
 
-    // 1 match found, or multiple matches with a common prefix
-    if (q_first == q_last || match_len > s_len) {
-        *compl_str = match_str + s_len;
-        return match_len - s_len;
-    }
+    //// 1 match found, or multiple matches with a common prefix
+    //if (q_first == q_last || match_len > s_len) {
+    //    *compl_str = match_str + s_len;
+    //    return match_len - s_len;
+    //}
 
-    // multiple matches found, print them out
-    print_completions(print, s_start, s_len, obj, q_first, q_last);
+    //// multiple matches found, print them out
+    //print_completions(print, s_start, s_len, obj, q_first, q_last);
 
-    return (size_t)(-1); // indicate many matches
+    //return (size_t)(-1); // indicate many matches
 }
 
 #endif // MICROPY_HELPER_REPL

@@ -155,6 +155,13 @@ typedef struct _mp_state_mem_t {
     #endif
 } mp_state_mem_t;
 
+// Storage for scope info when in debug mode
+typedef struct _trio_scope_t {
+   struct _trio_scope_t* next;
+   qstr source_file;
+   void* scopes; // TODO: Not void*! scope_t*!
+} trio_scope_t;
+
 // This structure hold runtime and VM information.  It includes a section
 // which contains root pointers that must be scanned by the GC.
 typedef struct _mp_state_vm_t {
@@ -252,7 +259,10 @@ typedef struct _mp_state_vm_t {
     #endif
 
     #if MICROPY_ENABLE_VM_ABORT
-    bool vm_abort;
+    // Made volatile due to multithreading
+    // Should consider making atomic to be idiomatic although
+    // no CPU has non-atomic byte writes
+    volatile bool vm_abort;
     nlr_buf_t *nlr_abort;
     #endif
 
@@ -265,6 +275,9 @@ typedef struct _mp_state_vm_t {
     // See mp_map_lookup.
     uint8_t map_lookup_cache[MICROPY_OPT_MAP_LOOKUP_CACHE_SIZE];
     #endif
+
+    bool trio_debug; // Is debug enabled
+    trio_scope_t* trio_scopes; // Storage for scope information when debug is enabled
 } mp_state_vm_t;
 
 // This structure holds state that is specific to a given thread. Everything
@@ -302,7 +315,7 @@ typedef struct _mp_state_thread_t {
     nlr_jump_callback_node_t *nlr_jump_callback_top;
 
     // pending exception object (MP_OBJ_NULL if not pending)
-    volatile mp_obj_t mp_pending_exception;
+    mp_obj_t mp_pending_exception;
 
     // If MP_OBJ_STOP_ITERATION is propagated then this holds its argument.
     mp_obj_t stop_iteration_arg;
@@ -326,15 +339,28 @@ typedef struct _mp_state_ctx_t {
     mp_state_mem_t mem;
 } mp_state_ctx_t;
 
+#ifdef MP_CROSS_COMPILER_BUILD
 extern mp_state_ctx_t mp_state_ctx;
-
+#define MP_STATE_REF (&mp_state_ctx)
 #define MP_STATE_VM(x) (mp_state_ctx.vm.x)
 #define MP_STATE_MEM(x) (mp_state_ctx.mem.x)
 #define MP_STATE_MAIN_THREAD(x) (mp_state_ctx.thread.x)
+#else // Make state thread local to allow for multiple instances
+extern mp_state_ctx_t* get_mp_state_ctx(void);
+#define MP_STATE_REF (get_mp_state_ctx())
+#define MP_STATE_VM(x) (get_mp_state_ctx()->vm.x)
+#define MP_STATE_MEM(x) (get_mp_state_ctx()->mem.x)
+#define MP_STATE_MAIN_THREAD(x) (get_mp_state_ctx()->thread.x)
+#endif
 
 #if MICROPY_PY_THREAD
-#define MP_STATE_THREAD(x) (mp_thread_get_state()->x)
+#ifdef MP_CROSS_COMPILER_BUILD
+#define MP_STATE_THREAD(x) (mp_state_ctx.x)
 #define mp_thread_is_main_thread() (mp_thread_get_state() == &mp_state_ctx.thread)
+#else // Make state thread local to allow for multiple instances
+#define MP_STATE_THREAD(x) (mp_thread_get_state()->x)
+#define mp_thread_is_main_thread() (mp_thread_get_state() == &get_mp_state_ctx()->thread)
+#endif
 #else
 #define MP_STATE_THREAD(x)  MP_STATE_MAIN_THREAD(x)
 #define mp_thread_is_main_thread() (true)

@@ -28,18 +28,22 @@
 #include "py/runtime.h"
 #include "py/mphal.h"
 #include "py/mpthread.h"
+#include "py/mpstate.h"
+#include "py/builtin.h"
+#include "py/lexer.h"
+#include "py/mperrno.h"
 
 #include "portal/micropython_portal.h"
 
-static HalFunctions static_hal_functions;
+// static HalFunctions static_hal_functions;
 
-void set_hal_functions_int(HalFunctions hal_functions) {
-    static_hal_functions = hal_functions;
-}
+// void set_hal_functions_int(HalFunctions hal_functions) {
+//     static_hal_functions = hal_functions;
+// }
 
-HalFunctions* get_hal_functions() {
-    return &static_hal_functions;
-}
+// HalFunctions* get_hal_functions() {
+//     return &static_hal_functions;
+// }
 
 //HANDLE std_in = NULL;
 //HANDLE con_out = NULL;
@@ -229,12 +233,14 @@ int mp_hal_stdin_rx_chr(void) {
     return CHAR_CTRL_C;
 }
 
+extern mp_uint_t MpHalStdoutTxStrnTrio(const char* str, size_t len);
 mp_uint_t mp_hal_stdout_tx_strn(const char *str, size_t len) {
     //MP_THREAD_GIL_EXIT(); // Doesn't do anything without (experimental) threading enabled
     //int ret = write(STDOUT_FILENO, str, len);
     //MP_THREAD_GIL_ENTER();
     //return ret < 0 ? 0 : ret; // return the number of bytes written, so in case of an error in the syscall, return 0
-    return get_hal_functions()->mp_hal_stdout_tx_strn(str, len);
+    // return get_hal_functions()->mp_hal_stdout_tx_strn(str, len);
+    return MpHalStdoutTxStrnTrio(str, len);
 }
 
 void mp_hal_stdout_tx_strn_cooked(const char *str, size_t len) {
@@ -245,12 +251,14 @@ void mp_hal_stdout_tx_str(const char *str) {
     mp_hal_stdout_tx_strn(str, strlen(str));
 }
 
+extern mp_uint_t MpHalTicksUsTrio(void);
 
 mp_uint_t mp_hal_ticks_us(void) {
     /*struct timeval tv;
     gettimeofday(&tv, NULL);
     return tv.tv_sec * 1000000 + tv.tv_usec;*/
-    return get_hal_functions()->mp_hal_ticks_us();
+    // return get_hal_functions()->mp_hal_ticks_us();
+    return MpHalTicksUsTrio();
 }
 
 mp_uint_t mp_hal_ticks_ms(void) {
@@ -267,7 +275,7 @@ uint64_t mp_hal_time_ns(void) {
     return ((uint64_t)mp_hal_ticks_us()) * 1000;
 }
 
-
+extern mp_uint_t MpHalTicksCpuTrio(void);
 mp_uint_t mp_hal_ticks_cpu(void) {
     //LARGE_INTEGER value;
     //QueryPerformanceCounter(&value);
@@ -276,7 +284,8 @@ mp_uint_t mp_hal_ticks_cpu(void) {
     //#else
     //return value.LowPart;
     //#endif
-    return get_hal_functions()->mp_hal_ticks_cpu();
+    // return get_hal_functions()->mp_hal_ticks_cpu();
+    return MpHalTicksCpuTrio();
 }
 
 
@@ -295,6 +304,7 @@ mp_uint_t mp_hal_ticks_cpu(void) {
 //}
 //#endif
 
+extern void MpHalDelayMsTrio(mp_uint_t delay);
 void mp_hal_delay_ms(mp_uint_t ms) {
     #if MICROPY_ENABLE_SCHEDULER
     mp_uint_t start = mp_hal_ticks_ms();
@@ -303,8 +313,52 @@ void mp_hal_delay_ms(mp_uint_t ms) {
     }
     #else
     //msec_sleep((double)ms);
-    get_hal_functions()->mp_hal_delay_ms(ms);
+    // get_hal_functions()->mp_hal_delay_ms(ms);
+    MpHalDelayMsTrio(ms);
     #endif
+}
+
+extern upy_ctx* GetMpStateCtxTrio(void);
+mp_state_ctx_t* get_mp_state_ctx(void) {
+   return (mp_state_ctx_t*) GetMpStateCtxTrio();
+}
+
+extern upy_import_stat_t GetImportStatTrio(const char* path);
+mp_import_stat_t mp_import_stat(const char* path) {
+    switch (GetImportStatTrio(path)) {
+        case upy_import_stat_dir:
+            return MP_IMPORT_STAT_DIR;
+        case upy_import_stat_file:
+            return MP_IMPORT_STAT_FILE;
+        case upy_import_stat_no_exist:
+            return MP_IMPORT_STAT_NO_EXIST;
+    }
+    return MP_IMPORT_STAT_NO_EXIST;
+}
+
+extern mp_int_t MicropythonReadPythonFileLength(const char* filename);
+extern mp_uint_t MicropythonReadPythonFileName(const char* filename, char* buf);
+mp_lexer_t* mp_lexer_new_from_file(qstr filename) {
+   const char* fname = qstr_str(filename);
+
+   mp_int_t len = MicropythonReadPythonFileLength(fname);
+   if (len < 0) {
+      mp_raise_OSError(MP_EIO);
+      return NULL;
+   }
+   char* buf = m_new(char, len);
+
+   if (!MicropythonReadPythonFileName(fname, buf)) {
+      m_del(char, buf, len);
+      mp_raise_OSError(MP_EIO);
+      return NULL;
+   }
+
+   // Handles buf cleanup
+   return mp_lexer_new_from_str_len(filename, buf, (mp_uint_t)len-1, (mp_uint_t)len);
+
+   //char* buf = "print(123)\n\n\n";
+   //return mp_lexer_new_from_str_len(filename, buf, (mp_uint_t)11, (mp_uint_t)0);
 }
 
 //void mp_hal_get_random(size_t n, void *buf) {

@@ -1,9 +1,51 @@
+#include <windows.h>
+#include <stdio.h>
 #include "portal/micropython_portal.h"
 #include "win_hal.h"
 #include "trio_mphal.h"
+#include <stdlib.h>
+
+// Thread function that calls start_upy
+DWORD WINAPI run_upy(LPVOID lpParam) {
+    upy_ctx* ctx = (upy_ctx*)lpParam;
+    return (DWORD)start_upy(ctx);
+}
 
 int main() {
-    set_hal_functions(win_hal_functions());
+    HalFunctions win_hal = win_hal_functions();
+    set_hal_functions(win_hal);
 
-    return start_upy();
+    HANDLE thread1, thread2;
+    DWORD threadId1, threadId2;
+
+    upy_ctx ctx1 = NULL, ctx2 = NULL;
+
+    // Create two threads
+    thread1 = CreateThread(NULL, 0, run_upy, &ctx1, 0, &threadId1);
+    thread2 = CreateThread(NULL, 0, run_upy, &ctx2, 0, &threadId2);
+
+    if (thread1 == NULL || thread2 == NULL) {
+        fprintf(stderr, "Failed to create threads.\n");
+        return 1;
+    }
+
+    while (ctx1 == NULL || ctx2 == NULL) {
+        win_hal.mp_hal_delay_ms(100);
+    }
+
+    win_hal.mp_hal_delay_ms(2000);
+    interrupt_upy(ctx1);
+    interrupt_upy(ctx2);
+
+    // Wait for both threads to finish
+    WaitForSingleObject(thread1, INFINITE);
+    WaitForSingleObject(thread2, INFINITE);
+
+    // Close thread handles
+    CloseHandle(thread1);
+    CloseHandle(thread2);
+
+    system("pause");
+
+    return 0;
 }

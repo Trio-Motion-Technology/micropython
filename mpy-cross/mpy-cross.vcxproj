@@ -87,13 +87,21 @@
   </ItemDefinitionGroup>
   <Import Project="$(PyMsvcDir)sources.props" />
   <ItemGroup>
-    <ClCompile Include="@(PyCoreSource)" />
-    <ClCompile Include="$(PyBaseDir)shared/runtime/gchelper_generic.c" >
-      <PreprocessorDefinitions>MICROPY_GCREGS_SETJMP</PreprocessorDefinitions>
+    <ClCompile Include="@(PyCoreSource)">
+      <PreprocessorDefinitions>MP_CROSS_COMPILER_BUILD</PreprocessorDefinitions>
     </ClCompile>
-    <ClCompile Include="$(PyBaseDir)mpy-cross\gccollect.c"/>
-    <ClCompile Include="$(PyBaseDir)mpy-cross\main.c"/>
-    <ClCompile Include="$(PyBaseDir)ports\windows\fmode.c" />
+    <ClCompile Include="$(PyBaseDir)shared/runtime/gchelper_generic.c" >
+      <PreprocessorDefinitions>MICROPY_GCREGS_SETJMP;MP_CROSS_COMPILER_BUILD</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="$(PyBaseDir)mpy-cross\gccollect.c">
+      <PreprocessorDefinitions>MP_CROSS_COMPILER_BUILD</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="$(PyBaseDir)mpy-cross\main.c">
+      <PreprocessorDefinitions>MP_CROSS_COMPILER_BUILD</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="$(PyBaseDir)ports\windows\fmode.c">
+      <PreprocessorDefinitions>MP_CROSS_COMPILER_BUILD</PreprocessorDefinitions>
+    </ClCompile>
   </ItemGroup>
   <Import Project="$(PyMsvcDir)genhdr.targets" />
   <Import Project="$(CustomPropsFile)" Condition="exists('$(CustomPropsFile)')" />

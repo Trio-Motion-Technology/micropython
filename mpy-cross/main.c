@@ -24,6 +24,11 @@
  * THE SOFTWARE.
  */
 
+#ifndef MP_CROSS_COMPILER_BUILD
+#error "Set MP_CROSS_COMPILER_BUILD when compiling mpy-cross"
+#endif // !MP_CROSS_COMPILER_BUILD
+
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -219,6 +224,7 @@ static char *backslash_to_forwardslash(char *path) {
     }
     return path;
 }
+
 
 MP_NOINLINE int main_(int argc, char **argv) {
     mp_stack_set_limit(40000 * (sizeof(void *) / 4));

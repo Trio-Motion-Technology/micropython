@@ -31,13 +31,32 @@
 #include "mpconfigtypes.h"
 
 #define MICROPY_CONFIG_ROM_LEVEL (MICROPY_CONFIG_ROM_LEVEL_MINIMUM)
-#define MICROPY_HEAP_SIZE      (65536)
 
-// #define MICROPY_LONGINT_IMPL (MICROPY_LONGINT_IMPL_MPZ)
+#define MICROPY_OPT_MAP_LOOKUP_CACHE (1)
+
+#define MICROPY_ENABLE_VM_ABORT (1)
+
+#define MICROPY_LONGINT_IMPL (MICROPY_LONGINT_IMPL_MPZ)
 
 #define MICROPY_PY_ERRNO (0)
 
 #define MICROPY_ENABLE_COMPILER     (1)
+#define MICROPY_PY_BUILTINS_COMPILE (1)
+#define MICROPY_PERSISTENT_CODE_SAVE (0)
+#define MICROPY_COMP_CONST_FOLDING (1)
+#define MICROPY_COMP_CONST_TUPLE (1)
+#define MICROPY_COMP_CONST_LITERAL (1)
+#define MICROPY_COMP_MODULE_CONST (1)
+#define MICROPY_COMP_CONST (1)
+#define MICROPY_COMP_DOUBLE_TUPLE_ASSIGN (1)
+#define MICROPY_COMP_TRIPLE_TUPLE_ASSIGN (1)
+#define MICROPY_COMP_RETURN_IF_EXPR (1)
+
+#define MICROPY_OPT_LOAD_ATTR_FAST_PATH (1)
+#define MICROPY_OPT_MAP_LOOKUP_CACHE (1)
+#define MICROPY_OPT_MPZ_BITWISE (1)
+
+#define MICROPY_PY_SYS_SETTRACE (0)
 
 // #define MICROPY_QSTR_EXTRA_POOL           mp_qstr_frozen_const_pool
 #define MICROPY_ENABLE_GC                 (1)
@@ -51,12 +70,29 @@
 // Use the minimum headroom in the chunk allocator for parse nodes.
 #define MICROPY_ALLOC_PARSE_CHUNK_INIT    (16)
 
+#define MICROPY_ENABLE_SOURCE_LINE (1)
+#define MICROPY_ERROR_REPORTING (MICROPY_ERROR_REPORTING_DETAILED)
+
 // Disable all optional sys module features.
 #define MICROPY_PY_SYS_MODULES            (1)
 #define MICROPY_PY_SYS_EXIT               (0)
 #define MICROPY_PY_SYS_PATH               (0)
 #define MICROPY_PY_SYS_ARGV               (0)
+#define MICROPY_PY_MATH                   (1)
 
+#ifndef MICROPY_FLOAT_IMPL
+#define MICROPY_FLOAT_IMPL          (MICROPY_FLOAT_IMPL_DOUBLE)
+#endif
+
+// Micropy will use the heap as its stack, not falling back to recursing
+//    1. Without stack checking (although this can be done) we risk a segfault
+//    2. As thread stack space is statically allocated anyway, would rather increase uPy
+//       heap size than thread stack size for all processes
+//    3. Adds prev attribute to mp_code_state_t, allowing a stack trace to be obtained, without
+//       enabling the expensive MICROPY_PY_SYS_SETTRACE flag, or reimplementing the parts of
+//       MICROPY_PY_SYS_SETTRACE needed to get a stack trace
+#define MICROPY_STACKLESS (1)
+#define MICROPY_STACKLESS_STRICT (1)
 
 #define MICROPY_HW_BOARD_NAME "trio-unknown"
 #define MICROPY_HW_MCU_NAME "unknown-cpu"
@@ -74,6 +110,11 @@ extern const struct _mp_print_t mp_stderr_print;
 
 #define MICROPY_PORT_INIT_FUNC      init()
 #define MICROPY_PORT_DEINIT_FUNC    deinit()
+
+#define MICROPY_PY_TIME (1)
+
+#define MICROPY_PERSISTENT_CODE_LOAD (1)
+#define MICROPY_PY_FSTRINGS (1)
 
 // type definitions for the specific machine
 
@@ -186,10 +227,10 @@ extern const struct _mp_print_t mp_stderr_print;
 // Put static/global variables in sections with a known name
 // This used to be required for GC, not the case anymore but keep it as it makes the map file easier to inspect
 // For this to work this header must be included by all sources, which is the case normally
-#define MICROPY_PORT_DATASECTION "upydata"
-#define MICROPY_PORT_BSSSECTION "upybss"
-#pragma data_seg(MICROPY_PORT_DATASECTION)
-#pragma bss_seg(MICROPY_PORT_BSSSECTION)
+// #define MICROPY_PORT_DATASECTION "upydata"
+// #define MICROPY_PORT_BSSSECTION "upybss"
+// #pragma data_seg(MICROPY_PORT_DATASECTION)
+// #pragma bss_seg(MICROPY_PORT_BSSSECTION)
 
 
 // System headers (needed e.g. for nlr.h)

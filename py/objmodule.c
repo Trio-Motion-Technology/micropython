@@ -149,12 +149,14 @@ mp_obj_t mp_obj_new_module(qstr module_name) {
 static const mp_rom_map_elem_t mp_builtin_module_table[] = {
     // built-in modules declared with MP_REGISTER_MODULE()
     MICROPY_REGISTERED_MODULES
+    {.key = NULL, .value = NULL}, // MSVC empty initialiser fix
 };
 MP_DEFINE_CONST_MAP(mp_builtin_module_map, mp_builtin_module_table);
 
 static const mp_rom_map_elem_t mp_builtin_extensible_module_table[] = {
     // built-in modules declared with MP_REGISTER_EXTENSIBLE_MODULE()
     MICROPY_REGISTERED_EXTENSIBLE_MODULES
+    {.key = NULL, .value = NULL}, // MSVC empty initialiser fix
 };
 MP_DEFINE_CONST_MAP(mp_builtin_extensible_module_map, mp_builtin_extensible_module_table);
 
