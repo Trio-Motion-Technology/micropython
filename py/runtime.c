@@ -73,6 +73,9 @@ void mp_init(void) {
     qstr_init();
     MP_STATE_VM(trio_debug) = false;
     MP_STATE_VM(trio_scopes) = NULL;
+    MP_STATE_VM(trio_access_ongoing) = false;
+    MP_STATE_VM(trio_has_paused) = false;
+    MP_STATE_VM(trio_paused_code_state) = NULL;
 
     // no pending exceptions to start with
     MP_STATE_THREAD(mp_pending_exception) = MP_OBJ_NULL;
@@ -1306,7 +1309,7 @@ mp_obj_t mp_getiter(mp_obj_t o_in, mp_obj_iter_buf_t *iter_buf) {
 
     if (MP_OBJ_TYPE_HAS_SLOT(type, iter)) {
         // check for native getiter (corresponds to __iter__)
-        if (iter_buf == NULL && MP_OBJ_TYPE_GET_SLOT(type, iter) != mp_obj_instance_getiter) {
+        if (iter_buf == NULL && MP_OBJ_TYPE_GET_SLOT(type, iter) != (const void*) mp_obj_instance_getiter) {
             // if caller did not provide a buffer then allocate one on the heap
             // mp_obj_instance_getiter is special, it will allocate only if needed
             iter_buf = m_new_obj(mp_obj_iter_buf_t);

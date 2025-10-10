@@ -37,7 +37,13 @@ extern void MpHalDelayMsTrio(mp_uint_t delay);
 extern upy_ctx* GetMpStateCtxTrio(void);
 extern heap_def GetMpHeapDefTrio(void);
 
-extern void OnLineChange(const char* fileName, int lineNo, void* code_state);
+typedef struct {
+   bool continueExec;
+   char* readVariable;
+   char** variableOut;
+} LineChangeResponse;
+
+extern bool MicropythonShouldPause(const char* fileName, size_t prev_line, size_t lineNo);
 
 typedef enum {
    upy_import_stat_dir,
@@ -51,8 +57,12 @@ extern mp_int_t MicropythonReadPythonFileLength(const char* filename);
 extern mp_uint_t MicropythonReadPythonFileName(const char* filename, char* buf);
 
 //int start_upy();
-int start_upy_single(const char* file_name, const char *src, bool debug);
+int start_upy_single(const char* file_name, const char *src, bool debug, size_t stack_size);
 
 void interrupt_upy(upy_ctx *ctx);
+
+const char* upy_access_variable(const char* var_name);
+
+bool upy_has_paused(upy_ctx* ctx);
 
 #endif

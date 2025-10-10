@@ -29,7 +29,7 @@
 
 #include "mpconfigport.h"
 
-#include "sleep.h"
+// #include "sleep.h"
 #include "portal/micropython_portal.h"
 
 #include <errno.h>

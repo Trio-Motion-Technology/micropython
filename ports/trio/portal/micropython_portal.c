@@ -13,6 +13,8 @@
 #include "py/mpstate.h"
 #include "py/emitglue.h"
 #include "py/scope.h"
+#include "py/objfun.h"
+#include "py/bc.h"
 
 // void set_hal_functions(HalFunctions hal_functions) {
 // 	set_hal_functions_int(hal_functions);
@@ -41,13 +43,18 @@ void do_str(const char* file_name, const char* src, mp_parse_input_kind_t input_
 
 static char* stack_top;
 
-int start_upy_single(const char* file_name, const char* src, bool debug) {
-    heap_def hd = GetMpHeapDefTrio();
+int start_upy_single(const char* file_name, const char* src, bool debug, size_t stack_size) {
+ heap_def hd = GetMpHeapDefTrio();
     int stack_dummy;
     stack_top = (char*)&stack_dummy;
     gc_init(hd.start, hd.end);
     mp_init();
+    mp_cstack_init_with_top((void*)stack_top, stack_size);
     MP_STATE_VM(trio_debug) = debug;
+
+    if (debug) {
+        mp_hal_stdout_tx_strn("Running Python in debug mode\r\n", 30);
+    }
 
     nlr_buf_t nlr;
     nlr.ret_val = NULL;
@@ -62,7 +69,9 @@ int start_upy_single(const char* file_name, const char* src, bool debug) {
            mp_hal_stdout_tx_strn("Python VM aborted\r\n", 19);
        }
        else {
-           // Other exception
+          // ! Other exception that should have been caught in do_str
+          mp_hal_stdout_tx_strn("Python uncaught exception during VM abort:\r\n", 28);
+          mp_obj_print_exception(&mp_plat_print, (mp_obj_t)nlr.ret_val);
        }
     }
 
@@ -112,13 +121,14 @@ void gc_collect(void) {
 #endif
 
 void nlr_jump_fail(void* val) {
+    mp_printf(&mp_plat_print, "nlr_jump_fail");
     while (1) {
         ;
     }
 }
 
 void MP_NORETURN __fatal_error(const char* msg) {
-    printf("Fatal error: %s", msg);
+    mp_printf(&mp_plat_print, "Fatal error: %s", msg);
     while (1) {
         ;
     }
@@ -126,7 +136,117 @@ void MP_NORETURN __fatal_error(const char* msg) {
 
 #ifndef NDEBUG
 void MP_WEAK __assert_func(const char* file, int line, const char* func, const char* expr) {
-    printf("Assertion '%s' failed, at file %s:%d\n", expr, file, line);
+    mp_printf(&mp_plat_print, "Assertion '%s' failed, at file %s:%d\n", expr, file, line);
     __fatal_error("Assertion failed");
 }
 #endif
+
+void vstr_add_str_void(void *vstr, const char *str, size_t len) {
+   vstr_add_strn((vstr_t*) vstr, str, len);
+}
+
+const char* find_variable(mp_state_ctx_t* state_ctx, mp_code_state_t* code_state, scope_t* scope, const char* looking_for) {
+   mp_obj_t* /*const*/ fastn;
+   size_t n_state = code_state->n_state;
+   fastn = &code_state->state[n_state - 1];
+
+   for (int i = 0; i < scope->id_info_len; i++) {
+      id_info_t* id = &scope->id_info[i];
+
+      if (strcmp(qstr_str(id->qst), looking_for) != 0) { // Not our variable
+         continue;
+      }
+
+      mp_obj_t obj_shared;
+      switch (id->kind) {
+      case ID_INFO_KIND_LOCAL:
+      case ID_INFO_KIND_FREE:
+         obj_shared = fastn[-(id->local_num)];
+         break;
+      case ID_INFO_KIND_CELL:
+         obj_shared = mp_obj_cell_get(fastn[-(id->local_num)]);
+         break;
+      case ID_INFO_KIND_GLOBAL_EXPLICIT:
+      case ID_INFO_KIND_GLOBAL_IMPLICIT:
+      case ID_INFO_KIND_GLOBAL_IMPLICIT_ASSIGNED:
+         nlr_buf_t nlr;
+         nlr.ret_val = NULL;
+         if (nlr_push(&nlr) == 0) {
+            obj_shared = mp_load_global(id->qst);
+         }
+         else {
+            obj_shared = MP_OBJ_NULL;
+         }
+         break;
+      };
+
+      if (obj_shared == MP_OBJ_NULL) {
+         return "undefined";
+      }
+      else {
+         const mp_obj_type_t* type = mp_obj_get_type(obj_shared);
+
+         vstr_t vstr;
+         char* ret;
+         if (MP_OBJ_TYPE_HAS_SLOT(type, print)) {
+            vstr_init(&vstr, 16);
+
+            mp_print_t print;
+            print.data = &vstr;
+            print.print_strn = vstr_add_str_void;
+
+            MP_OBJ_TYPE_GET_SLOT(type, print)(&print, obj_shared, PRINT_STR);
+
+            ret = vstr_null_terminated_str(&vstr);
+         }
+         else {
+            const char* type_name = qstr_str(type->name);
+            vstr_init(&vstr, strlen(type_name) + 3); // < + type_name + > + \0
+            vstr_add_char(&vstr, '<');
+            vstr_add_str(&vstr, type_name);
+            vstr_add_char(&vstr, '>');
+            ret = vstr_null_terminated_str(&vstr);
+         }
+
+         trio_to_free_t* new_to_free = m_new(trio_to_free_t, 1);
+         *new_to_free = (trio_to_free_t){
+            .next = state_ctx->vm.trio_to_free,
+            .str = vstr
+         };
+         state_ctx->vm.trio_to_free = new_to_free;
+         return ret;
+      }
+   }
+
+   return NULL; // Not found
+}
+
+// Value returned only lives until execution resumes!
+const char* upy_access_variable(const char* var_name) {
+   mp_state_ctx_t* state_ctx = MP_STATE_REF;
+   if (!state_ctx->vm.trio_has_paused) return NULL;
+   if (state_ctx->vm.trio_access_ongoing) return NULL; // ! Shouldn't be possible
+   state_ctx->vm.trio_access_ongoing = true; // TODO: Make atomic
+
+   mp_code_state_t* code_state = (mp_code_state_t*) state_ctx->vm.trio_paused_code_state;
+   trio_scope_t* trio_scope = state_ctx->vm.trio_scopes;
+
+   while (trio_scope != NULL) {
+      scope_t* scope = (scope_t*)trio_scope->scopes;
+
+      while (scope != NULL) {
+         if (scope->raw_code->fun_data == (void*)code_state->fun_bc->bytecode) {
+            const char* ret = find_variable(state_ctx, code_state, scope, var_name);
+            state_ctx->vm.trio_access_ongoing = false; // TODO: Make atomic
+            return ret;
+         }
+
+         scope = scope->next;
+      }
+
+      trio_scope = trio_scope->next;
+   }
+
+   state_ctx->vm.trio_access_ongoing = false; // TODO: Make atomic
+   return NULL;
+}

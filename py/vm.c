@@ -322,6 +322,8 @@ void trio_debug_print_scope(mp_code_state_t* code_state) {
 }
 #endif
 
+extern bool MicropythonShouldPause(const char* fileName, size_t prev_line, size_t lineNo);
+
 // fastn has items in reverse order (fastn[0] is local[0], fastn[-1] is local[1], etc)
 // sp points to bottom of stack which grows up
 // returns:
@@ -405,6 +407,8 @@ FRAME_SETUP();
     volatile int gil_divisor = MICROPY_PY_THREAD_GIL_VM_DIVISOR;
     #endif
 
+    size_t prev_line = 0;
+
     // outer exception handling loop
     for (;;) {
         nlr_buf_t nlr;
@@ -436,8 +440,60 @@ outer_dispatch_loop:
             dispatch_loop:
 
 #if MICROPY_STACKLESS
-                if (MP_STATE_VM(trio_debug)) trio_debug_print_scope(code_state);
-                
+                if (MP_STATE_VM(trio_debug)) {
+                   //trio_debug_print_scope(code_state);
+
+                   // TODO: Check for line change - don't always run
+                   mp_code_state_t* unwind = code_state;
+                   const byte* ip = unwind->fun_bc->bytecode;
+                   MP_BC_PRELUDE_SIG_DECODE(ip);
+                   MP_BC_PRELUDE_SIZE_DECODE(ip);
+                   const byte* line_info_top = ip + n_info;
+                   const byte* bytecode_start = ip + n_info + n_cell;
+                   size_t bc = unwind->ip - bytecode_start;
+                   qstr block_name = mp_decode_uint_value(ip);
+                   for (size_t i = 0; i < 1 + n_pos_args + n_kwonly_args; ++i) {
+                      ip = mp_decode_uint_skip(ip);
+                   }
+                   
+                   qstr source_file = unwind->fun_bc->context->constants.qstr_table[0];
+                   size_t source_line = mp_bytecode_get_source_line(ip, line_info_top, bc);
+                   const char* file = qstr_str(source_file);
+                   
+                   if (MicropythonShouldPause(file, prev_line, source_line)) {
+                      mp_printf(&mp_plat_print, "Python paused\r\n");
+
+                      MP_STATE_VM(trio_paused_code_state) = code_state;
+
+                      while (MicropythonShouldPause(file, prev_line, source_line) && !MP_STATE_VM(vm_abort)) {
+                         MP_STATE_VM(trio_has_paused) = true;
+                         mp_hal_delay_ms(1);
+                      }
+                      MP_STATE_VM(trio_has_paused) = false;
+                      while (MP_STATE_VM(trio_access_ongoing) && !MP_STATE_VM(vm_abort)) { // Wait for variable access to finish
+                         mp_hal_delay_ms(1);
+                      }
+
+                      // Clean up outputted variables
+                      trio_to_free_t* to_free = MP_STATE_VM(trio_to_free);
+                      while (to_free != NULL) {
+                         trio_to_free_t* next = to_free->next;
+                         vstr_clear(&to_free->str);
+                         m_del_obj(trio_to_free_t, to_free);
+                         to_free = next;
+                      }
+                      MP_STATE_VM(trio_to_free) = NULL;
+
+                      mp_printf(&mp_plat_print, "Python resumed\r\n");
+
+                      if (MP_STATE_VM(vm_abort)) {
+                         mp_handle_pending(true);
+                      }
+                   }
+
+                   prev_line = source_line;
+                }
+
                 //mp_code_state_t *unwind = code_state;
                 //while (unwind != NULL) {
                 //    const byte* ip = unwind->fun_bc->bytecode;

@@ -162,6 +162,11 @@ typedef struct _trio_scope_t {
    void* scopes; // TODO: Not void*! scope_t*!
 } trio_scope_t;
 
+typedef struct _trio_to_free_t {
+   struct _trio_to_free_t* next;
+   vstr_t str;
+} trio_to_free_t;
+
 // This structure hold runtime and VM information.  It includes a section
 // which contains root pointers that must be scanned by the GC.
 typedef struct _mp_state_vm_t {
@@ -278,6 +283,10 @@ typedef struct _mp_state_vm_t {
 
     bool trio_debug; // Is debug enabled
     trio_scope_t* trio_scopes; // Storage for scope information when debug is enabled
+    volatile bool trio_access_ongoing; // Is a variable access ongoing? If so we cannot resume. - should be atomic
+    volatile bool trio_has_paused; // Is execution paused? Can we inspect variables? - should be atomic
+    void* trio_paused_code_state; // Code state when paused - only safe to access if trio_has_paused is true
+    trio_to_free_t* trio_to_free; // List of pointers to free when resuming execution
 } mp_state_vm_t;
 
 // This structure holds state that is specific to a given thread. Everything

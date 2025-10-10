@@ -27,7 +27,7 @@
 // options to control how MicroPython is built
 
 // Variant-specific definitions.
-#include "mpconfigvariant.h"
+// #include "mpconfigvariant.h"
 #include "mpconfigtypes.h"
 
 #define MICROPY_CONFIG_ROM_LEVEL (MICROPY_CONFIG_ROM_LEVEL_MINIMUM)
@@ -51,6 +51,8 @@
 #define MICROPY_COMP_DOUBLE_TUPLE_ASSIGN (1)
 #define MICROPY_COMP_TRIPLE_TUPLE_ASSIGN (1)
 #define MICROPY_COMP_RETURN_IF_EXPR (1)
+
+#define MICROPY_STACK_CHECK (1)
 
 #define MICROPY_OPT_LOAD_ATTR_FAST_PATH (1)
 #define MICROPY_OPT_MAP_LOOKUP_CACHE (1)
@@ -84,6 +86,10 @@
 #define MICROPY_FLOAT_IMPL          (MICROPY_FLOAT_IMPL_DOUBLE)
 #endif
 
+#define MICROPY_USE_INTERNAL_ERRNO (1)
+
+#define MICROPY_NLR_SETJMP (1)
+
 // Micropy will use the heap as its stack, not falling back to recursing
 //    1. Without stack checking (although this can be done) we risk a segfault
 //    2. As thread stack space is statically allocated anyway, would rather increase uPy
@@ -108,8 +114,8 @@ extern const struct _mp_print_t mp_stderr_print;
 #define MICROPY_EMERGENCY_EXCEPTION_BUF_SIZE     (256)
 #define MICROPY_KBD_EXCEPTION       (1)
 
-#define MICROPY_PORT_INIT_FUNC      init()
-#define MICROPY_PORT_DEINIT_FUNC    deinit()
+// #define MICROPY_PORT_INIT_FUNC      init()
+// #define MICROPY_PORT_DEINIT_FUNC    deinit()
 
 #define MICROPY_PY_TIME (1)
 
@@ -238,4 +244,16 @@ extern const struct _mp_print_t mp_stderr_print;
 #include <stddef.h> // for NULL
 #include <assert.h> // for assert
 
+#elif defined(__IAR_SYSTEMS_ICC__)
+#define MP_NORETURN                 __noreturn
+#define MP_WEAK                     
+#define MP_NOINLINE                 
+#define MP_ALWAYSINLINE             
+#define MP_LIKELY(x)                (x)
+#define MP_UNLIKELY(x)              (x)
+#define MICROPY_PORT_CONSTANTS      { MP_ROM_QSTR(MP_QSTR_dummy), MP_ROM_PTR(NULL) } // can't have zero-sized array
+//#define __arm__ (1)
+#include <alloca.h>
+#else
+#error "Unsupported compiler - only IAR and MSVC currently supported"
 #endif
