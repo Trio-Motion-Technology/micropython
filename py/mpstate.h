@@ -286,6 +286,7 @@ typedef struct _mp_state_vm_t {
     volatile bool trio_access_ongoing; // Is a variable access ongoing? If so we cannot resume. - should be atomic
     volatile bool trio_has_paused; // Is execution paused? Can we inspect variables? - should be atomic
     void* trio_paused_code_state; // Code state when paused - only safe to access if trio_has_paused is true
+    void* trio_paused_scope; // Code scope when paused - only safe to access if trio_has_paused is true
     trio_to_free_t* trio_to_free; // List of pointers to free when resuming execution
 } mp_state_vm_t;
 

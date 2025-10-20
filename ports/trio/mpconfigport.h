@@ -30,19 +30,25 @@
 // #include "mpconfigvariant.h"
 #include "mpconfigtypes.h"
 
+//#define MICROPY_EXPOSE_MP_COMPILE_TO_RAW_CODE (1)
+
 #define MICROPY_CONFIG_ROM_LEVEL (MICROPY_CONFIG_ROM_LEVEL_MINIMUM)
 
 #define MICROPY_OPT_MAP_LOOKUP_CACHE (1)
 
 #define MICROPY_ENABLE_VM_ABORT (1)
 
+// MPZ is Micropython's BigInt implementation
 #define MICROPY_LONGINT_IMPL (MICROPY_LONGINT_IMPL_MPZ)
 
+// We don't have OS errors
 #define MICROPY_PY_ERRNO (0)
 
 #define MICROPY_ENABLE_COMPILER     (1)
 #define MICROPY_PY_BUILTINS_COMPILE (1)
-#define MICROPY_PERSISTENT_CODE_SAVE (0)
+
+#define MICROPY_PERSISTENT_CODE_SAVE (1)
+
 #define MICROPY_COMP_CONST_FOLDING (1)
 #define MICROPY_COMP_CONST_TUPLE (1)
 #define MICROPY_COMP_CONST_LITERAL (1)
@@ -52,6 +58,7 @@
 #define MICROPY_COMP_TRIPLE_TUPLE_ASSIGN (1)
 #define MICROPY_COMP_RETURN_IF_EXPR (1)
 
+// Check how much stack we've used when recursing to prevent stack overflow
 #define MICROPY_STACK_CHECK (1)
 
 #define MICROPY_OPT_LOAD_ATTR_FAST_PATH (1)
@@ -62,9 +69,8 @@
 
 // #define MICROPY_QSTR_EXTRA_POOL           mp_qstr_frozen_const_pool
 #define MICROPY_ENABLE_GC                 (1)
-#define MICROPY_HELPER_REPL               (1)
+//#define MICROPY_HELPER_REPL               (1)
 #define MICROPY_REPL_EVENT_DRIVEN         (0)
-// #define MICROPY_MODULE_FROZEN_MPY         (1)
 #define MICROPY_ENABLE_EXTERNAL_IMPORT    (1)
 
 #define MICROPY_ALLOC_PATH_MAX            (256)
@@ -86,9 +92,14 @@
 #define MICROPY_FLOAT_IMPL          (MICROPY_FLOAT_IMPL_DOUBLE)
 #endif
 
+// We don't have OS errors
 #define MICROPY_USE_INTERNAL_ERRNO (1)
 
+// NLR is too platform/assembly dependant. Use setjmp
 #define MICROPY_NLR_SETJMP (1)
+
+
+#define MICROPY_HAS_FILE_READER (1)
 
 // Micropy will use the heap as its stack, not falling back to recursing
 //    1. Without stack checking (although this can be done) we risk a segfault
@@ -98,7 +109,7 @@
 //       enabling the expensive MICROPY_PY_SYS_SETTRACE flag, or reimplementing the parts of
 //       MICROPY_PY_SYS_SETTRACE needed to get a stack trace
 #define MICROPY_STACKLESS (1)
-#define MICROPY_STACKLESS_STRICT (1)
+#define MICROPY_STACKLESS_STRICT (1) // Don't allow fallback to stack when OOM
 
 #define MICROPY_HW_BOARD_NAME "trio-unknown"
 #define MICROPY_HW_MCU_NAME "unknown-cpu"

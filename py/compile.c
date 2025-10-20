@@ -3709,13 +3709,15 @@ void mp_compile_to_raw_code(mp_parse_tree_t *parse_tree, qstr source_file, bool 
     // free the scopes
     if (MP_STATE_VM(trio_debug)) { //... or store them for debugging
         trio_scope_t** ct_scope = &MP_STATE_VM(trio_scopes);
-        while (*ct_scope != NULL) *ct_scope = (*ct_scope)->next;
-        *ct_scope = m_malloc(sizeof(trio_scope_t)); // lives forever (as long as the Python process runs)
+        while (*ct_scope != NULL) ct_scope = &(*ct_scope)->next;
+        *ct_scope = m_malloc(sizeof(trio_scope_t)); // lives forever (as long as the Python process)
         trio_scope_t* t_scope = *ct_scope;
         
-        t_scope->scopes = module_scope;
-        t_scope->next = NULL;
-        t_scope->source_file = source_file;
+        *t_scope = (trio_scope_t){
+           .scopes = module_scope,
+           .next = NULL,
+           .source_file = source_file
+        };
     }
     else {
         for (scope_t* s = module_scope; s;) {

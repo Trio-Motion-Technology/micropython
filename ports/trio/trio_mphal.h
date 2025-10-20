@@ -31,6 +31,7 @@
 
 // #include "sleep.h"
 #include "portal/micropython_portal.h"
+#include "py/reader.h"
 
 #include <errno.h>
 #include <unistd.h>
@@ -93,6 +94,9 @@ static inline void mp_hal_delay_us(mp_uint_t us) {
    mp_hal_delay_ms(us / 1000);
 }
 
+void mp_reader_new_trio_src(mp_reader_t* reader, const char* src_start, const char* src_end);
+void mp_reader_new_trio_obj(mp_reader_t* reader, const char* src_start, const char* src_end);
+void mp_reader_new_file(mp_reader_t* reader, qstr filename);
 
 
 #endif // !TRIO_MPHAL_H

@@ -117,7 +117,7 @@ void mp_hal_set_interrupt_char(char c) {
     }*/
 }
 
-void mp_hal_move_cursor_back(uint pos) {
+void mp_hal_move_cursor_back(unsigned int pos) {
     //if (!pos) {
     //    return;
     //}
@@ -139,7 +139,7 @@ void mp_hal_move_cursor_back(uint pos) {
     //SetConsoleCursorPosition(con_out, info.dwCursorPosition);
 }
 
-void mp_hal_erase_line_from_cursor(uint n_chars_to_erase) {
+void mp_hal_erase_line_from_cursor(unsigned int n_chars_to_erase) {
     /*assure_conout_handle();
     CONSOLE_SCREEN_BUFFER_INFO info;
     GetConsoleScreenBufferInfo(con_out, &info);
@@ -336,29 +336,143 @@ mp_import_stat_t mp_import_stat(const char* path) {
     return MP_IMPORT_STAT_NO_EXIST;
 }
 
-extern mp_int_t MicropythonReadPythonFileLength(const char* filename);
-extern mp_uint_t MicropythonReadPythonFileName(const char* filename, char* buf);
+//extern mp_int_t MicropythonReadPythonFileLength(const char* filename);
+//extern mp_uint_t MicropythonReadPythonFileName(const char* filename, char* buf);
+
+/*
+   Source file:
+      [1 bytes] ?
+      [1 bytes] Line length inc. 'header' and trailing 0x01
+      [1 bytes] ? and whether there is a break
+      [x bytes] (Line length -  3) bytes of line
+*/
+typedef struct {
+   const byte* beg;
+   const byte* cur;
+   const byte* next_header;
+   const byte* end;
+} mp_reader_trio_src_t;
+
+static mp_uint_t mp_reader_trio_src_readbyte(void* data) {
+   mp_reader_trio_src_t* reader = (mp_reader_trio_src_t*)data;
+
+   while (reader->cur == reader->next_header && reader->cur < reader->end) {
+      bool first_line = reader->cur == reader->beg;
+
+      reader->cur++;
+      byte length = *reader->cur;
+      reader->cur += 2; // Skip to first byte of line
+
+      reader->next_header = reader->cur + (length - 3);
+
+      if (!first_line) {
+         return '\n'; // Insert newline
+      }
+   }
+
+   if (reader->cur < reader->end) {
+      return *reader->cur++;
+   }
+   else {
+      return MP_READER_EOF;
+   }
+}
+
+static void mp_reader_trio_src_close(void* data) {
+   mp_reader_trio_src_t* reader = (mp_reader_trio_src_t*)data;
+   m_del_obj(mp_reader_trio_src_t, reader);
+}
+
+void mp_reader_new_trio_src(mp_reader_t* reader, const char* src_start, const char* src_end) {
+   mp_reader_trio_src_t* rm = m_new_obj(mp_reader_trio_src_t);
+   rm->beg = src_start;
+   rm->cur = src_start;
+   rm->next_header = src_start;
+   rm->end = src_end;
+   reader->data = rm;
+   reader->readbyte = mp_reader_trio_src_readbyte;
+   reader->close = mp_reader_trio_src_close;
+}
+
+/*
+   Object files: Just raw bytes
+*/
+typedef struct {
+   const byte* beg;
+   const byte* cur;
+   const byte* end;
+} mp_reader_trio_obj_t;
+
+static mp_uint_t mp_reader_trio_obj_readbyte(void* data) {
+   mp_reader_trio_obj_t* reader = (mp_reader_trio_obj_t*)data;
+
+   if (reader->cur < reader->end) {
+      //mp_printf(&mp_plat_print, "%d ", *reader->cur);
+      //MpHalDelayMsTrio(1000);
+      return *reader->cur++;
+   }
+   else {
+      return MP_READER_EOF;
+   }
+}
+
+static void mp_reader_trio_obj_close(void* data) {
+   mp_reader_trio_obj_t* reader = (mp_reader_trio_obj_t*)data;
+   m_del_obj(mp_reader_trio_obj_t, reader);
+}
+
+// Skips over Trio source bytes and inserts newlines
+void mp_reader_new_trio_obj(mp_reader_t* reader, const char* src_start, const char* src_end) {
+   mp_reader_trio_obj_t* rm = m_new_obj(mp_reader_trio_obj_t);
+   rm->beg = src_start;
+   rm->cur = src_start;
+   rm->end = src_end;
+   reader->data = rm;
+   reader->readbyte = mp_reader_trio_obj_readbyte;
+   reader->close = mp_reader_trio_obj_close;
+}
+
 mp_lexer_t* mp_lexer_new_from_file(qstr filename) {
    const char* fname = qstr_str(filename);
 
-   mp_int_t len = MicropythonReadPythonFileLength(fname);
-   if (len < 0) {
-      mp_raise_OSError(MP_EIO);
-      return NULL;
+   const char* src_start;
+   const char* src_end;
+   mp_uint_t ret = MicropythonGetTrioSrc(fname, &src_start, &src_end);
+   if (ret == -1) mp_raise_OSError(MP_EIO);
+   mp_reader_t reader;
+   mp_reader_new_trio_src(&reader, src_start, src_end);
+   mp_lexer_t* lex = mp_lexer_new(filename, reader);
+
+   return lex;
+}
+
+// Should really only be used in mp_raw_code_load_file on .mpy
+// files but make it work for .py files because why not
+void mp_reader_new_file(mp_reader_t* reader, qstr filename) {
+   size_t flen = qstr_len(filename);
+   const char* fname = qstr_str(filename);
+
+   if (flen >= 3 && fname[flen - 3] == '.' && fname[flen - 2] == 'p' && fname[flen - 1] == 'y') {
+      // Source
+      const char* src_start;
+      const char* src_end;
+      mp_uint_t ret = MicropythonGetTrioSrc(fname, &src_start, &src_end);
+      if (ret == -1) mp_raise_OSError(MP_EIO);
+      mp_reader_new_trio_src(reader, src_start, src_end);
+      return;
    }
-   char* buf = m_new(char, len);
-
-   if (!MicropythonReadPythonFileName(fname, buf)) {
-      m_del(char, buf, len);
-      mp_raise_OSError(MP_EIO);
-      return NULL;
+   else if (flen >= 4 && fname[flen - 4] == '.' && fname[flen - 3] == 'm' && fname[flen - 2] == 'p' && fname[flen - 1] == 'y') {
+      // Object
+      const char* obj_start;
+      const char* obj_end;
+      mp_uint_t ret = MicropythonGetTrioObj(fname, &obj_start, &obj_end);
+      if (ret == -1) mp_raise_OSError(MP_EIO);
+      mp_reader_new_trio_obj(reader, obj_start, obj_end);
+      return;
    }
-
-   // Handles buf cleanup
-   return mp_lexer_new_from_str_len(filename, buf, (mp_uint_t)len-1, (mp_uint_t)len);
-
-   //char* buf = "print(123)\n\n\n";
-   //return mp_lexer_new_from_str_len(filename, buf, (mp_uint_t)11, (mp_uint_t)0);
+   else {
+      mp_raise_OSError(MP_EIO);
+   }
 }
 
 //void mp_hal_get_random(size_t n, void *buf) {
