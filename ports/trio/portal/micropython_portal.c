@@ -57,9 +57,46 @@ void upy_compile_code(const char* filename, const char* src_start, const char* s
    vstr_clear(&vstr);
 }
 
+// Currently the only difference from mp_obj_print_exception is subtracting 1 from the
+// line number
+static void mp_obj_print_exception_trio(const mp_print_t* print, mp_obj_t exc) {
+   if (mp_obj_is_exception_instance(exc)) {
+      size_t n, * values;
+      mp_obj_exception_get_traceback(exc, &n, &values);
+      if (n > 0) {
+         assert(n % 3 == 0);
+         mp_print_str(print, "Traceback (most recent call last):\n");
+         for (int i = n - 3; i >= 0; i -= 3) {
+#if MICROPY_ENABLE_SOURCE_LINE
+            mp_printf(print, "  File \"%q\", line %d", values[i], (int)values[i + 1] - 1);
+#else
+            mp_printf(print, "  File \"%q\"", values[i]);
+#endif
+            // the block name can be NULL if it's unknown
+            qstr block = values[i + 2];
+            if (block == MP_QSTRnull) {
+               mp_print_str(print, "\n");
+            }
+            else {
+               mp_printf(print, ", in %q\n", block);
+            }
+         }
+      }
+   }
+   mp_obj_print_helper(print, exc, PRINT_EXC);
+   mp_print_str(print, "\n");
+}
+
+
 static void emit_exception(mp_obj_t exc, bool compilation_error) {
-   mp_hal_stdout_tx_strn("Python uncaught exception:\r\n", 28);
-   mp_obj_print_exception(&mp_plat_print, exc);
+   if (compilation_error) {
+      mp_hal_stdout_tx_strn("\r\nPython uncaught compilation exception:\r\n\r\n", 44);
+   }
+   else {
+      mp_hal_stdout_tx_strn("\r\nPython uncaught runtime exception:\r\n\r\n", 40);
+
+   }
+   mp_obj_print_exception_trio(&mp_plat_print, exc);
 
    vstr_t exception_vstr;
 
@@ -78,24 +115,24 @@ static void emit_exception(mp_obj_t exc, bool compilation_error) {
          for (int i = n - 3; i >= 0; i -= 3) {
             file = values[i];
             line = values[i + 1];
-            mp_printf(&print, "  File \"%q\", line %d", values[i], (int)values[i + 1]);
+            //mp_printf(&print, "  File \"%q\", line %d", values[i], (int)values[i + 1]);
             // the block name can be NULL if it's unknown
             qstr block = values[i + 2];
             if (block == MP_QSTRnull) {
-               mp_print_str(&print, "\n");
+               //mp_print_str(&print, "\n");
             }
             else {
-               mp_printf(&print, ", in %q\n", block);
+               //mp_printf(&print, ", in %q\n", block);
             }
          }
       }
    }
    mp_obj_print_helper(&print, exc, PRINT_EXC);
-   mp_print_str(&print, "\n");
+   //mp_print_str(&print, "\n");
 
    const char* exception_cstr = vstr_null_terminated_str(&exception_vstr);
 
-   MicropythonSetException(qstr_str(file), exception_cstr, line, compilation_error);
+   MicropythonSetException(qstr_str(file), exception_cstr, line - 1, compilation_error);
 
    vstr_clear(&exception_vstr);
 }
@@ -133,13 +170,16 @@ bool upy_compile_code_no_env(const char* filename, const char* src_start, const 
    return success;
 }
 
-int upy_run_debug(const char* filename, const char* src_start, const char* src_end) {
-   volatile int stack_dummy;
-   void* stack_top = (void*)&stack_dummy;
-
+void upy_init(void) {
    heap_def_t hd = GetMpHeapDefTrio();
    gc_init(hd.start, hd.end);
-    mp_init();
+   mp_init();
+}
+
+void upy_run_debug(const char* filename, const char* src_start, const char* src_end) {
+    volatile int stack_dummy;
+    void* stack_top = (void*)&stack_dummy;
+
     mp_cstack_init_with_top(stack_top, GetStackSizeTrio());
 
     MP_STATE_VM(trio_debug) = true;
@@ -188,19 +228,10 @@ int upy_run_debug(const char* filename, const char* src_start, const char* src_e
     return 0;
 }
 
-// TODO: This also needs to support source as the file may not currently be compiled.
-//     I would precompile the file before upy_run but the compiler requires a
-//     Micropython environment and error handling so it is cleaner for upy_run
-//     to call it.
-int upy_run(const char* filename, const char* obj_start, const char* obj_end) {
+void upy_run(const char* filename, const char* obj_start, const char* obj_end) {
    volatile int stack_dummy;
    void* stack_top = (void*)&stack_dummy;
 
-   heap_def_t hd = GetMpHeapDefTrio();
-   gc_init(hd.start, hd.end);
-
-   gc_init(hd.start, hd.end);
-   mp_init();
    mp_cstack_init_with_top(stack_top, GetStackSizeTrio());
 
    mp_hal_stdout_tx_strn("Running Python in normal mode\r\n", 31);
@@ -248,23 +279,6 @@ int upy_run(const char* filename, const char* obj_start, const char* obj_end) {
    mp_deinit();
    return 0;
 }
-
-//int start_upy() {
-//    int stack_dummy;
-//    stack_top = (char*)&stack_dummy;
-//    gc_init(heap, heap + sizeof(heap));
-//    mp_init();
-//
-//    /*do_str("print(12)", MP_PARSE_SINGLE_INPUT);
-//    do_str("print('hello world!', list(x+1 for x in range(10)), end='eol\\n')", MP_PARSE_SINGLE_INPUT);
-//    do_str("for i in range(10):\r\n  print(i)", MP_PARSE_FILE_INPUT);
-//    do_str("try:\n    print(input('x: '))\nexcept Exception as e:\n    print('x', e)", MP_PARSE_FILE_INPUT);*/
-//
-//    do_str("i = 0\nwhile True:\n    i += 1\n    print(i)", MP_PARSE_FILE_INPUT);
-//
-//    mp_deinit();
-//    return 0;
-//}
 
 // ! Called from external thread
 void upy_abort(upy_ctx *ctx) {

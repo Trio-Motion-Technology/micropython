@@ -68,6 +68,9 @@ mpconfig.h:
    defaults.
 */
 
+// TODO: Clearly mark which functions require being run from a thread
+//    with a Micropython context
+
 #ifndef MICROPYTHON_PORTAL_H
 #define MICROPYTHON_PORTAL_H
 
@@ -75,16 +78,6 @@ mpconfig.h:
 #include <stdbool.h>
 
 #include "../mpconfigtypes.h"
-
-typedef struct {
-    mp_uint_t(*mp_hal_stdout_tx_strn)(const char* str, size_t len);
-    mp_uint_t(*mp_hal_ticks_us)(void);
-    mp_uint_t(*mp_hal_ticks_cpu)(void);
-    void(*mp_hal_delay_ms)(mp_uint_t ms);
-} HalFunctions;
-
-// void set_hal_functions(HalFunctions hal_functions);
-
 
 // TODO: This is very janky but we can't include mp_state_ctx_t
 // directly as it uses Micropython imports (e.g. py/xyz), not
@@ -108,14 +101,8 @@ extern upy_ctx* GetMpStateCtxTrio(void);
 extern heap_def_t GetMpHeapDefTrio(void);
 extern mp_uint_t GetStackSizeTrio(void);
 
-typedef struct {
-   bool continueExec;
-   char* readVariable;
-   char** variableOut;
-} LineChangeResponse;
-
 extern bool MicropythonShouldPause(const char* fileName, size_t lineNo);
-extern bool MicropythonStayPaused(void);
+extern bool MicropythonStayPaused(const char* fileName);
 
 typedef enum {
    upy_import_stat_dir,
@@ -146,17 +133,26 @@ void upy_compile_code(const char* filename, const char* src_start, const char* s
 // IMPORTANT: This overwrite the current job's state!
 bool upy_compile_code_no_env(const char* filename, const char* src_start, const char* src_end);
 
+// Initialises some state allowing the VM's abort flag to be set if needed
+// 1. Wait for process state to be READY, in this time upy_abort cannot be used
+// 2. Lock process resources, call upy_init, set active = TRUE
+// 3. upy_abort can now be used normally
+void upy_init(void);
+
 // Compiles and runs provided Python code, saving debug information as it goes.
 // Imports should always return .py files, not .mpy
 // Will output uncaught exceptions with MicropythonSetException
-int upy_run_debug(const char* file_name, const char* src_start, const char* src_end);
+// IMPORTANT: upy_init must be called first!
+void upy_run_debug(const char* file_name, const char* src_start, const char* src_end);
 
 // Runs provided Python bytecode
 // Imports should always return .mpy files, not .py
 // Will output uncaught exceptions with MicropythonSetException
-int upy_run(const char* file_name, const char* obj_start, const char* obj_end);
+// IMPORTANT: upy_init must be called first!
+void upy_run(const char* file_name, const char* obj_start, const char* obj_end);
 
 // Permanently stop the VM
+// IMPORTANT: Cannot be used before upy_init is called
 void upy_abort(upy_ctx *ctx);
 
 // Accesses a variable currently in scope

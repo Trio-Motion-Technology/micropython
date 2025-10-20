@@ -214,7 +214,7 @@ MP_NOINLINE static mp_obj_t *build_slice_stack_allocated(byte op, mp_obj_t *sp, 
 #endif
 
 extern bool MicropythonShouldPause(const char* fileName, size_t lineNo);
-extern bool MicropythonStayPaused(void);
+extern bool MicropythonStayPaused(const char* fileName);
 
 // fastn has items in reverse order (fastn[0] is local[0], fastn[-1] is local[1], etc)
 // sp points to bottom of stack which grows up
@@ -375,7 +375,7 @@ outer_dispatch_loop:
                       MP_STATE_VM(trio_paused_scope) = current_scope;
 
                       // Stay paused
-                      while (MicropythonStayPaused() && !MP_STATE_VM(vm_abort)) {
+                      while (MicropythonStayPaused(file) && !MP_STATE_VM(vm_abort)) {
                          MP_STATE_VM(trio_has_paused) = true;
                          mp_hal_delay_ms(1);
                       }
