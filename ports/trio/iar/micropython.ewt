@@ -3560,9 +3560,6 @@
         <name>$PROJ_DIR$\..\..\..\py\emitnxtensawin.c</name>
     </file>
     <file>
-        <name>$PROJ_DIR$\..\..\..\examples\usercmodule\cexample\examplemodule.c</name>
-    </file>
-    <file>
         <name>$PROJ_DIR$\..\..\..\py\formatfloat.c</name>
     </file>
     <file>
@@ -3642,6 +3639,9 @@
     </file>
     <file>
         <name>$PROJ_DIR$\..\..\..\extmod\modtime.c</name>
+    </file>
+    <file>
+        <name>$PROJ_DIR$\..\module\module.c</name>
     </file>
     <file>
         <name>$PROJ_DIR$\..\..\..\py\mpconfig.h</name>

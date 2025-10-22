@@ -5,10 +5,8 @@
 #include "py/builtin.h"
 #include "py/compile.h"
 #include "py/runtime.h"
-//#include "py/repl.h"
 #include "py/gc.h"
 #include "py/mperrno.h"
-//#include "shared/runtime/pyexec.h"
 #include "trio_mphal.h"
 #include "py/mpstate.h"
 #include "py/emitglue.h"
@@ -225,7 +223,7 @@ void upy_run_debug(const char* filename, const char* src_start, const char* src_
     mp_hal_stdout_tx_strn("Python exited\r\n", 15);
 
     mp_deinit();
-    return 0;
+    return;
 }
 
 void upy_run(const char* filename, const char* obj_start, const char* obj_end) {
@@ -277,7 +275,7 @@ void upy_run(const char* filename, const char* obj_start, const char* obj_end) {
    mp_hal_stdout_tx_strn("Python exited\r\n", 15);
 
    mp_deinit();
-   return 0;
+   return;
 }
 
 // ! Called from external thread
@@ -420,18 +418,18 @@ const char* upy_access_variable_internal(const char* var_name) {
    mp_state_ctx_t* state_ctx = MP_STATE_REF;
    if (!state_ctx->vm.trio_has_paused) return NULL;
    if (state_ctx->vm.trio_access_ongoing) return NULL; // ! Shouldn't be possible
-   state_ctx->vm.trio_access_ongoing = true; // TODO: Make atomic
+   state_ctx->vm.trio_access_ongoing = true; // TODO: Make atomic?
 
    mp_code_state_t* code_state = (mp_code_state_t*)state_ctx->vm.trio_paused_code_state;
 
    scope_t* scope = (scope_t*)state_ctx->vm.trio_paused_scope;
    if (scope == NULL) {
-      state_ctx->vm.trio_access_ongoing = false; // TODO: Make atomic
+      state_ctx->vm.trio_access_ongoing = false;
       return NULL;
    }
 
    const char* ret = find_variable(state_ctx, code_state, scope, var_name);
-   state_ctx->vm.trio_access_ongoing = false; // TODO: Make atomic
+   state_ctx->vm.trio_access_ongoing = false;
    return ret;
 }
 

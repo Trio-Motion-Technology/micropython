@@ -122,7 +122,7 @@
     <ClCompile Include="$(PyBaseDir)ports\trio\*.c" />
     <ClCompile Include="$(PyBaseDir)ports\trio\msvc\*.c" />
     <ClCompile Include="$(PyBaseDir)ports\trio\portal\*.c" />
-    <ClCompile Include="$(PyBaseDir)examples\usercmodule\cexample\examplemodule.c" />
+    <ClCompile Include="$(PyBaseDir)ports\trio\module\module.c" />
     <!-- <ClCompile Include="$(PyBaseDir)ports\unix\gccollect.c"/> -->
     <!-- <ClCompile Include="$(PyBaseDir)ports\unix\input.c" />
     <ClCompile Include="$(PyBaseDir)ports\unix\main.c" /> -->
