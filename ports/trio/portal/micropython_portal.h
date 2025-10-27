@@ -155,10 +155,49 @@ void upy_run(const char* file_name, const char* obj_start, const char* obj_end);
 // IMPORTANT: Cannot be used before upy_init is called
 void upy_abort(upy_ctx *ctx);
 
-// Accesses a variable currently in scope
+typedef struct {
+   const char* block_name;
+   const char* file;
+   size_t line;
+} stack_trace_frame_t;
+
+typedef enum {
+   // A string will be placed into buffer and type_buffer - the default
+   lookup_variant_custom,
+
+   // --- type_support >= 1 ---
+
+   // The first 8 bytes of buffer will be an LE IEEE 64-bit float - type_buffer will be left
+   lookup_variant_float
+} lookup_variant_t;
+
+// Must have at least 8 bytes in both buffers
+typedef struct {
+   lookup_variant_t* out_variant;
+   char* buffer;
+   size_t buffer_size;
+   char* type_buffer;
+   size_t type_buffer_size;
+   bool* is_global;
+} lookup_buffers_t;
+
+
+// Accesses a variable in the current or global scope
 // IMPORTANT:
 //    - The VM must be paused
-//    - The string returned will become invalid upon VM resumption
-const char* upy_access_variable(const char* var_name);
+//    - Buffer size must be at least 1
+//    - No dot-separated part of var_name may be longer than 50 chars. If it is, this will
+//       always return false
+bool upy_access_variable(const char* var_name, lookup_buffers_t lookup_buffers, int type_support);
+
+// Gets the stack trace
+// IMPORTANT:
+//    - The VM must be paused
+//    - Qstrs are emitted in stack_trace_frame_t - these are only guaranteed to live as
+//      long as this Python VM!
+// 
+// TODO: Is the posibility that a VM is stopped and restarted quickly enough after
+//    getting the stack trace that the Qstrs are invalidated a problem worth solving?
+size_t upy_get_stack_trace(stack_trace_frame_t* stack_trace_frames, size_t max_frames, bool* stack_truncated);
 
 #endif

@@ -35,7 +35,7 @@ static MP_DEFINE_CONST_FUN_OBJ_1(rapidstop_obj, rapidstop);
 
 extern void MotionAPI_Forward(int32_t axis, bool bufferwait, void* moveStatus);
 
-static mp_obj_t forward() {
+static mp_obj_t forward(void) {
    MotionAPI_Forward(0, false, NULL);
 
    return mp_const_none;

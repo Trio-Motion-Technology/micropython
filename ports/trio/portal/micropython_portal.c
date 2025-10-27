@@ -15,9 +15,6 @@
 #include "py/bc.h"
 #include "py/persistentcode.h"
 
-// void set_hal_functions(HalFunctions hal_functions) {
-// 	set_hal_functions_int(hal_functions);
-// }
 
 void vstr_add_str_void(void* data, const char* str, size_t len) {
    vstr_add_strn((vstr_t*)data, str, len);
@@ -25,8 +22,41 @@ void vstr_add_str_void(void* data, const char* str, size_t len) {
 
 mp_print_t print_to_vstr(vstr_t* vstr) {
    mp_print_t print;
-   print.data = vstr;
+   print.data = (void*) vstr;
    print.print_strn = vstr_add_str_void;
+   return print;
+}
+
+typedef struct {
+   char* buffer;
+   size_t current_offset;
+   size_t buffer_size;
+} buffer_data_t;
+
+void buffer_add_str_void(void* data, const char* str, size_t len) {
+   buffer_data_t* bdata = (buffer_data_t*)data;
+
+   size_t copy_amount;
+   if (len <= bdata->buffer_size - bdata->current_offset) copy_amount = len;
+   else copy_amount = bdata->buffer_size - bdata->current_offset;
+
+   if (copy_amount != 0) {
+      memcpy((void*)(bdata->buffer + bdata->current_offset), (void*)str, copy_amount);
+      bdata->current_offset += copy_amount;
+
+      // Add ellipsis if too long
+      if (bdata->current_offset == bdata->buffer_size && bdata->buffer_size > 3) {
+         bdata->buffer[bdata->buffer_size - 1] = '.';
+         bdata->buffer[bdata->buffer_size - 2] = '.';
+         bdata->buffer[bdata->buffer_size - 3] = '.';
+      }
+   }
+}
+
+mp_print_t print_to_buffer(buffer_data_t* buffer_data) {
+   mp_print_t print;
+   print.data = (void*) buffer_data;
+   print.print_strn = buffer_add_str_void;
    return print;
 }
 
@@ -113,18 +143,20 @@ static void emit_exception(mp_obj_t exc, bool compilation_error) {
          for (int i = n - 3; i >= 0; i -= 3) {
             file = values[i];
             line = values[i + 1];
-            //mp_printf(&print, "  File \"%q\", line %d", values[i], (int)values[i + 1]);
+            mp_printf(&print, "File \"%q\", line %d", values[i], (int)values[i + 1] - 1);
             // the block name can be NULL if it's unknown
             qstr block = values[i + 2];
             if (block == MP_QSTRnull) {
-               //mp_print_str(&print, "\n");
+               mp_print_str(&print, "\n");
             }
             else {
-               //mp_printf(&print, ", in %q\n", block);
+               mp_printf(&print, ", in %q\n", block);
             }
          }
       }
    }
+
+   mp_printf(&print, "    ");
    mp_obj_print_helper(&print, exc, PRINT_EXC);
    //mp_print_str(&print, "\n");
 
@@ -321,10 +353,133 @@ void MP_WEAK __assert_func(const char* file, int line, const char* func, const c
 }
 #endif
 
-// TODO: While they are cleaned up once unpaused, every variable inspection allocates
-//    space on the Micropython heap so the heap could fill, with enough variables
-//    being inspected or with the heap already beaing quite full.
-const char* find_variable(mp_state_ctx_t* state_ctx, mp_code_state_t* code_state, scope_t* scope, const char* looking_for) {
+void lookup_output_obj(mp_obj_t obj, lookup_buffers_t lookup_buffers, int type_support) {
+   // Custom type handling
+   if (obj != MP_OBJ_NULL && type_support >= 1 && mp_obj_is_float(obj)) {
+      *lookup_buffers.out_variant = lookup_variant_float;
+      double flt = mp_obj_get_float_to_d(obj);
+
+      union double_bytes_t {
+         double value;
+         char bytes[8];
+      };
+
+      union double_bytes_t db;
+      db.value = flt;
+
+      // TODO: Is big endian a concern?
+      for (size_t i = 0; i < 8; i++) {
+         lookup_buffers.buffer[i] = db.bytes[i];
+      }
+      return;
+   }
+
+   lookup_buffers.out_variant = lookup_variant_custom;
+
+   buffer_data_t buffer = (buffer_data_t){
+         .buffer = lookup_buffers.buffer,
+         .current_offset = 0,
+         .buffer_size = lookup_buffers.buffer_size - 1 // For null terminator
+   };
+
+   mp_print_t buf_print = print_to_buffer(&buffer);
+
+   buffer_data_t type_buffer = (buffer_data_t){
+      .buffer = lookup_buffers.type_buffer,
+      .current_offset = 0,
+      .buffer_size = lookup_buffers.type_buffer_size - 1 // For null terminator
+   };
+
+   mp_print_t type_buf_print = print_to_buffer(&type_buffer);
+
+   if (obj == MP_OBJ_NULL) {
+      mp_printf(&type_buf_print, "undefined");
+      mp_printf(&buf_print, "undefined");
+   }
+   else {
+      const mp_obj_type_t* type = mp_obj_get_type(obj);
+      mp_printf(&type_buf_print, "%q", type->name);
+
+      if (MP_OBJ_TYPE_HAS_SLOT(type, print)) {
+         nlr_buf_t nlr;
+         if (nlr_push(&nlr) == 0) {
+
+            MP_OBJ_TYPE_GET_SLOT(type, print)(&buf_print, obj, PRINT_STR);
+
+            nlr_pop();
+         }
+         else {
+            mp_printf(&buf_print, "<%q object> [Error stringifying type]", type->name);
+         }
+      }
+      else {
+         mp_printf(&buf_print, "<%q object>", type->name);
+      }
+   }
+
+   lookup_buffers.buffer[buffer.current_offset] = '\0';
+   lookup_buffers.type_buffer[type_buffer.current_offset] = '\0';
+}
+
+bool find_attrib(mp_obj_t base_obj, const char* looking_for, lookup_buffers_t lookup_buffers, int type_support) {
+   char current_section[51];
+   const char* section = looking_for;
+
+   mp_obj_t value = base_obj;
+
+   do {
+      size_t i = 0;
+      while (true) {
+         if (i == 50) return false; // Name too long
+
+         if (section[i] == '\0') {
+            section = NULL;
+            break;
+         }
+         if (section[i] == '.') {
+            section += i + 1;
+            break;
+         }
+
+         current_section[i] = section[i];
+
+         i++;
+      }
+
+      current_section[i] = '\0';
+
+      // Attributes are always interned as Qstrings, so if one doesn't exist, the attribute doesn't
+      qstr attr_qstr = qstr_find_strn(&current_section[0], i);
+      if (attr_qstr == MP_QSTRnull) return false;
+
+      value = mp_load_attr(value, attr_qstr);
+
+   } while (section != NULL);
+
+   lookup_output_obj(value, lookup_buffers, type_support);
+   return true;
+}
+
+bool find_variable(mp_code_state_t* code_state, scope_t* scope, const char* looking_for, lookup_buffers_t lookup_buffers, int type_support) {
+   char current_section[51];
+   const char* next_section = NULL;
+
+   size_t i = 0;
+   while (true) {
+      if (i == 50) return false; // Name too long
+
+      if (looking_for[i] == '\0') break;
+      if (looking_for[i] == '.') {
+         next_section = looking_for + i + 1;
+         break;
+      }
+
+      current_section[i] = looking_for[i];
+
+      i++;
+   }
+   current_section[i] = '\0';
+
    mp_obj_t* /*const*/ fastn;
    size_t n_state = code_state->n_state;
    fastn = &code_state->state[n_state - 1];
@@ -334,7 +489,7 @@ const char* find_variable(mp_state_ctx_t* state_ctx, mp_code_state_t* code_state
 
       const char* var_name = qstr_str(id->qst);
 
-      if (strcmp(var_name, looking_for) != 0) { // Not our variable
+      if (strcmp(var_name, &current_section[0]) != 0) { // Not our variable
          continue;
       }
 
@@ -349,7 +504,7 @@ const char* find_variable(mp_state_ctx_t* state_ctx, mp_code_state_t* code_state
          break;
       case ID_INFO_KIND_GLOBAL_EXPLICIT:
       case ID_INFO_KIND_GLOBAL_IMPLICIT:
-      case ID_INFO_KIND_GLOBAL_IMPLICIT_ASSIGNED:
+      case ID_INFO_KIND_GLOBAL_IMPLICIT_ASSIGNED: {
          nlr_buf_t nlr;
          nlr.ret_val = NULL;
          if (nlr_push(&nlr) == 0) {
@@ -360,87 +515,92 @@ const char* find_variable(mp_state_ctx_t* state_ctx, mp_code_state_t* code_state
             obj_shared = MP_OBJ_NULL;
          }
          break;
+      }
       };
 
-      if (obj_shared == MP_OBJ_NULL) {
-         return "undefined";
+      if (obj_shared != MP_OBJ_NULL && next_section != NULL) {
+         return find_attrib(obj_shared, next_section, lookup_buffers, type_support);
       }
-      else {
-         const mp_obj_type_t* type = mp_obj_get_type(obj_shared);
 
-         vstr_t vstr;
-         char* ret;
-         if (MP_OBJ_TYPE_HAS_SLOT(type, print)) {
-            nlr_buf_t nlr;
-            if (nlr_push(&nlr) == 0) {
-               vstr_init(&vstr, 16);
-
-               mp_print_t print = print_to_vstr(&vstr);
-
-               MP_OBJ_TYPE_GET_SLOT(type, print)(&print, obj_shared, PRINT_STR);
-
-               ret = vstr_null_terminated_str(&vstr);
-
-               nlr_pop();
-            }
-            else {
-               const char* type_name = qstr_str(type->name);
-               vstr_init(&vstr, strlen(type_name) + 36); // "<" + type_name + " object> [Error stringifying type]\0"
-               vstr_add_char(&vstr, '<');
-               vstr_add_str(&vstr, type_name);
-               vstr_add_str(&vstr, " object> [Error stringifying type]");
-               ret = vstr_null_terminated_str(&vstr);
-            }
-         }
-         else {
-            const char* type_name = qstr_str(type->name);
-            vstr_init(&vstr, strlen(type_name) + 10); // "<" + type_name + " object>\0"
-            vstr_add_char(&vstr, '<');
-            vstr_add_str(&vstr, type_name);
-            vstr_add_str(&vstr, " object>");
-            ret = vstr_null_terminated_str(&vstr);
-         }
-
-         trio_to_free_t* new_to_free = m_new(trio_to_free_t, 1);
-         *new_to_free = (trio_to_free_t){
-            .next = state_ctx->vm.trio_to_free,
-            .str = vstr
-         };
-         state_ctx->vm.trio_to_free = new_to_free;
-         return ret;
-      }
+      lookup_output_obj(obj_shared, lookup_buffers, type_support);
+      
+      return true;
    }
 
-   return NULL; // Not found
+   return false; // Not found
 }
 
-const char* upy_access_variable_internal(const char* var_name) {
+bool upy_access_variable_internal(const char* var_name, lookup_buffers_t lookup_buffers, int type_support) {
    mp_state_ctx_t* state_ctx = MP_STATE_REF;
-   if (!state_ctx->vm.trio_has_paused) return NULL;
-   if (state_ctx->vm.trio_access_ongoing) return NULL; // ! Shouldn't be possible
-   state_ctx->vm.trio_access_ongoing = true; // TODO: Make atomic?
+   if (!state_ctx->vm.trio_has_paused) return false;
+   if (state_ctx->vm.trio_access_ongoing) return false; // ! Shouldn't be possible
+   state_ctx->vm.trio_access_ongoing = true; // TODO: Proper locks
 
    mp_code_state_t* code_state = (mp_code_state_t*)state_ctx->vm.trio_paused_code_state;
 
    scope_t* scope = (scope_t*)state_ctx->vm.trio_paused_scope;
    if (scope == NULL) {
       state_ctx->vm.trio_access_ongoing = false;
-      return NULL;
+      return false;
    }
 
-   const char* ret = find_variable(state_ctx, code_state, scope, var_name);
+   bool ret = find_variable(code_state, scope, var_name, lookup_buffers, type_support);
    state_ctx->vm.trio_access_ongoing = false;
    return ret;
 }
 
-// Value returned only lives until execution resumes!
-const char* upy_access_variable(const char* var_name) {
+bool upy_access_variable(const char* var_name, lookup_buffers_t lookup_buffers, int type_support) {
    volatile int stack_dummy;
    char* prev_stack_top = MP_STATE_THREAD(stack_top);
    MP_STATE_THREAD(stack_top) = (char*)&stack_dummy; // Allows stack checks to pass
 
-   const char* ret = upy_access_variable_internal(var_name);
+   bool ret = upy_access_variable_internal(var_name, lookup_buffers, type_support);
+
+   *lookup_buffers.is_global = false; // TODO: Actually add this functionality
 
    MP_STATE_THREAD(stack_top) = prev_stack_top; // Restore proper stack checks
    return ret;
+}
+
+size_t upy_get_stack_trace(stack_trace_frame_t* stack_trace_frames, size_t max_frames, bool* stack_truncated) {
+   mp_state_ctx_t* state_ctx = MP_STATE_REF;
+   mp_code_state_t* code_state = (mp_code_state_t*)state_ctx->vm.trio_paused_code_state;
+   
+   size_t frames_used = 0;
+   stack_trace_frame_t* current_frame = stack_trace_frames;
+
+   mp_code_state_t *unwind = code_state;
+   while (unwind != NULL && frames_used < max_frames) {
+       const byte* ip = unwind->fun_bc->bytecode;
+       MP_BC_PRELUDE_SIG_DECODE(ip);
+       MP_BC_PRELUDE_SIZE_DECODE(ip);
+       const byte* line_info_top = ip + n_info;
+       const byte* bytecode_start = ip + n_info + n_cell;
+       size_t bc = unwind->ip - bytecode_start;
+       qstr block_name = mp_decode_uint_value(ip);
+       for (size_t i = 0; i < 1 + n_pos_args + n_kwonly_args; ++i) {
+          ip = mp_decode_uint_skip(ip);
+       }
+
+       block_name = unwind->fun_bc->context->constants.qstr_table[block_name];
+       qstr source_file = unwind->fun_bc->context->constants.qstr_table[0];
+       
+       size_t source_line = mp_bytecode_get_source_line(ip, line_info_top, bc) - 1;
+       
+       current_frame->block_name = qstr_str(block_name);
+       current_frame->file = qstr_str(source_file);
+       current_frame->line = source_line;
+       
+       unwind = unwind->prev;
+       current_frame++;
+       frames_used++;
+   }
+
+   if (stack_truncated != NULL) {
+      *stack_truncated = unwind != NULL;
+   }
+
+   mp_printf(&mp_plat_print, "\r\n");
+
+   return frames_used;
 }
