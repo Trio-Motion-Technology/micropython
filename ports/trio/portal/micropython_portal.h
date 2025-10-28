@@ -155,40 +155,12 @@ void upy_run(const char* file_name, const char* obj_start, const char* obj_end);
 // IMPORTANT: Cannot be used before upy_init is called
 void upy_abort(upy_ctx *ctx);
 
+// TODO: Consider taking printer approach here too
 typedef struct {
    const char* block_name;
    const char* file;
    size_t line;
 } stack_trace_frame_t;
-
-typedef enum {
-   // A string will be placed into buffer and type_buffer - the default
-   lookup_variant_custom,
-
-   // --- type_support >= 1 ---
-
-   // The first 8 bytes of buffer will be an LE IEEE 64-bit float - type_buffer will be left
-   lookup_variant_float
-} lookup_variant_t;
-
-// Must have at least 8 bytes in both buffers
-typedef struct {
-   lookup_variant_t* out_variant;
-   char* buffer;
-   size_t buffer_size;
-   char* type_buffer;
-   size_t type_buffer_size;
-   bool* is_global;
-} lookup_buffers_t;
-
-
-// Accesses a variable in the current or global scope
-// IMPORTANT:
-//    - The VM must be paused
-//    - Buffer size must be at least 1
-//    - No dot-separated part of var_name may be longer than 50 chars. If it is, this will
-//       always return false
-bool upy_access_variable(const char* var_name, lookup_buffers_t lookup_buffers, int type_support);
 
 // Gets the stack trace
 // IMPORTANT:
@@ -199,5 +171,77 @@ bool upy_access_variable(const char* var_name, lookup_buffers_t lookup_buffers, 
 // TODO: Is the posibility that a VM is stopped and restarted quickly enough after
 //    getting the stack trace that the Qstrs are invalidated a problem worth solving?
 size_t upy_get_stack_trace(stack_trace_frame_t* stack_trace_frames, size_t max_frames, bool* stack_truncated);
+
+// Printers used below as opposed to buffers to save memory
+//    -> Printing code not implemented on Python side for separation of concerns
+
+typedef struct {
+   void(*print)(void* data);
+   void* data;
+} noinput_printer_t;
+
+typedef struct {
+   void(*print_flt)(void* data, double value);
+   void* data;
+} float_printer_t;
+
+typedef struct {
+   void(*print_strn)(void* data, const char* str, size_t len);
+   void* data;
+} printer_t;
+
+typedef struct {
+   // Will call:
+   //    1. type_printer
+   //    2. terminator_printer
+   //    3. separator_printer
+   //    4. value_printer
+   //    5. terminator_printer
+   //    6. separator_printer
+   //    7. scope_printer
+   //    8. terminator_printer
+   //
+   // For supported types, steps 1-5 will be replaced by one call to [type]_printer
+   printer_t type_printer;
+   printer_t value_printer;
+   printer_t scope_printer;
+   noinput_printer_t terminator_printer;
+   noinput_printer_t separator_printer;
+   noinput_printer_t timeout_printer; // Will be called instead of terminator_printer on timeout
+
+   // Type specific
+   float_printer_t float_printer;
+} lookup_printers_t;
+
+// Accesses a variable in the current or global scope. 
+// IMPORTANT:
+//    - The VM must be paused
+//    - No dot-separated part of var_name may be longer than max_part_length. If it is, this will
+//       always return false
+//    - max_part_length bytes will be allocated on the stack - a too big value will cause a stack overflow
+bool upy_access_variable(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support);
+
+typedef struct {
+   // Will call:
+   //    1. attribute_printer
+   //    2. terminator_printer
+   //    -- Stops here if no more attributes
+   //    -- Jumps to overflow_printer if max_attrib exceeded
+   //    3. separator_printer
+   //    4. loop
+   printer_t attribute_printer;
+   noinput_printer_t separator_printer;
+   noinput_printer_t terminator_printer;
+
+   noinput_printer_t overflow_printer;
+} attribute_printers_t;
+
+// Lists the attributes on a variable. Will return 0 if the value has no attributes, and -1 if the value couldn't be found.
+// Important:
+//    - The VM must be paused
+//    - No dot-separated part of var_name may be longer than max_part_length. If it is, this will
+//       always return false
+//    - max_part_length bytes will be allocated on the stack - a too big value will cause a stack overflow
+int upy_list_attributes(const char* var_name, size_t max_part_length, attribute_printers_t attrib_printers, size_t max_attrib, size_t skip);
 
 #endif

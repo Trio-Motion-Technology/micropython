@@ -60,6 +60,17 @@ mp_print_t print_to_buffer(buffer_data_t* buffer_data) {
    return print;
 }
 
+mp_print_t printer_to_mp_print(printer_t printer) {
+   return (mp_print_t) {
+      .print_strn = printer.print_strn,
+      .data = printer.data
+   };
+}
+
+void noinput_print(noinput_printer_t printer) {
+   printer.print(printer.data);
+}
+
 extern mp_uint_t mp_hal_stdout_tx_strn(const char* str, size_t len);
 
 void upy_compile_code(const char* filename, const char* src_start, const char* src_end) {
@@ -353,84 +364,73 @@ void MP_WEAK __assert_func(const char* file, int line, const char* func, const c
 }
 #endif
 
-void lookup_output_obj(mp_obj_t obj, lookup_buffers_t lookup_buffers, int type_support) {
-   // Custom type handling
+// TODO: Can execute arbitrary Python - needs to call GC
+void lookup_output_obj(mp_obj_t obj, scope_t* scope, lookup_printers_t lookup_printers, int type_support) {
+   // Custom type/value handling
    if (obj != MP_OBJ_NULL && type_support >= 1 && mp_obj_is_float(obj)) {
-      *lookup_buffers.out_variant = lookup_variant_float;
       double flt = mp_obj_get_float_to_d(obj);
 
-      union double_bytes_t {
-         double value;
-         char bytes[8];
-      };
-
-      union double_bytes_t db;
-      db.value = flt;
-
-      // TODO: Is big endian a concern?
-      for (size_t i = 0; i < 8; i++) {
-         lookup_buffers.buffer[i] = db.bytes[i];
-      }
-      return;
+      lookup_printers.float_printer.print_flt(lookup_printers.float_printer.data, flt);
    }
-
-   lookup_buffers.out_variant = lookup_variant_custom;
-
-   buffer_data_t buffer = (buffer_data_t){
-         .buffer = lookup_buffers.buffer,
-         .current_offset = 0,
-         .buffer_size = lookup_buffers.buffer_size - 1 // For null terminator
-   };
-
-   mp_print_t buf_print = print_to_buffer(&buffer);
-
-   buffer_data_t type_buffer = (buffer_data_t){
-      .buffer = lookup_buffers.type_buffer,
-      .current_offset = 0,
-      .buffer_size = lookup_buffers.type_buffer_size - 1 // For null terminator
-   };
-
-   mp_print_t type_buf_print = print_to_buffer(&type_buffer);
-
-   if (obj == MP_OBJ_NULL) {
-      mp_printf(&type_buf_print, "undefined");
-      mp_printf(&buf_print, "undefined");
-   }
+   // Normal type/value handling
    else {
-      const mp_obj_type_t* type = mp_obj_get_type(obj);
-      mp_printf(&type_buf_print, "%q", type->name);
+      mp_print_t type_print = printer_to_mp_print(lookup_printers.type_printer);
+      mp_print_t value_print = printer_to_mp_print(lookup_printers.value_printer);
 
-      if (MP_OBJ_TYPE_HAS_SLOT(type, print)) {
-         nlr_buf_t nlr;
-         if (nlr_push(&nlr) == 0) {
-
-            MP_OBJ_TYPE_GET_SLOT(type, print)(&buf_print, obj, PRINT_STR);
-
-            nlr_pop();
-         }
-         else {
-            mp_printf(&buf_print, "<%q object> [Error stringifying type]", type->name);
-         }
+      if (obj == MP_OBJ_NULL) {
+         mp_printf(&type_print, "undefined");
+         noinput_print(lookup_printers.terminator_printer);
+         noinput_print(lookup_printers.separator_printer);
+         mp_printf(&value_print, "undefined");
       }
       else {
-         mp_printf(&buf_print, "<%q object>", type->name);
-      }
-   }
+         const mp_obj_type_t* type = mp_obj_get_type(obj);
+         mp_printf(&type_print, "%q", type->name);
 
-   lookup_buffers.buffer[buffer.current_offset] = '\0';
-   lookup_buffers.type_buffer[type_buffer.current_offset] = '\0';
+         noinput_print(lookup_printers.terminator_printer);
+         noinput_print(lookup_printers.separator_printer);
+
+         if (MP_OBJ_TYPE_HAS_SLOT(type, print)) {
+            nlr_buf_t nlr;
+            if (nlr_push(&nlr) == 0) {
+
+               MP_OBJ_TYPE_GET_SLOT(type, print)(&value_print, obj, PRINT_STR);
+
+               nlr_pop();
+            }
+            else {
+               mp_printf(&value_print, "<%q object> [Error stringifying type]", type->name);
+            }
+         }
+         else {
+            mp_printf(&value_print, "<%q object>", type->name);
+         }
+      }
+
+      noinput_print(lookup_printers.terminator_printer);
+   }
+   
+   noinput_print(lookup_printers.separator_printer);
+
+   mp_print_t scope_print = printer_to_mp_print(lookup_printers.type_printer);
+   mp_printf(&scope_print, "%q", scope->simple_name);
+
+   noinput_print(lookup_printers.terminator_printer);
 }
 
-bool find_attrib(mp_obj_t base_obj, const char* looking_for, lookup_buffers_t lookup_buffers, int type_support) {
-   char current_section[51];
+// Returns MP_OBJ_SENTINEL if not found
+// May return MP_OBJ_NULL if the variable could be defined but isn't
+mp_obj_t find_variable(mp_code_state_t* code_state, scope_t* scope, const char* looking_for, size_t max_part_length) {
+   char* current_section = (char*)alloca(max_part_length + 1);
    const char* section = looking_for;
 
-   mp_obj_t value = base_obj;
+   mp_obj_t value = MP_OBJ_SENTINEL;
 
    do {
+      // Read part up to '.'
       size_t i = 0;
       while (true) {
-         if (i == 50) return false; // Name too long
+         if (i == max_part_length) return MP_OBJ_SENTINEL; // Name too long
 
          if (section[i] == '\0') {
             section = NULL;
@@ -445,92 +445,78 @@ bool find_attrib(mp_obj_t base_obj, const char* looking_for, lookup_buffers_t lo
 
          i++;
       }
-
       current_section[i] = '\0';
 
-      // Attributes are always interned as Qstrings, so if one doesn't exist, the attribute doesn't
-      qstr attr_qstr = qstr_find_strn(&current_section[0], i);
-      if (attr_qstr == MP_QSTRnull) return false;
 
-      value = mp_load_attr(value, attr_qstr);
+      if (value == MP_OBJ_SENTINEL) { // First iteration
+         mp_obj_t* /*const*/ fastn;
+         size_t n_state = code_state->n_state;
+         fastn = &code_state->state[n_state - 1];
 
-   } while (section != NULL);
+         for (int i = 0; i < scope->id_info_len; i++) {
+            id_info_t* id = &scope->id_info[i];
 
-   lookup_output_obj(value, lookup_buffers, type_support);
-   return true;
-}
+            const char* var_name = qstr_str(id->qst);
 
-bool find_variable(mp_code_state_t* code_state, scope_t* scope, const char* looking_for, lookup_buffers_t lookup_buffers, int type_support) {
-   char current_section[51];
-   const char* next_section = NULL;
+            if (strcmp(var_name, &current_section[0]) != 0) { // Not our variable
+               continue;
+            }
 
-   size_t i = 0;
-   while (true) {
-      if (i == 50) return false; // Name too long
+            mp_obj_t obj_shared = MP_OBJ_NULL;
+            switch (id->kind) {
+            case ID_INFO_KIND_LOCAL:
+            case ID_INFO_KIND_FREE:
+               obj_shared = fastn[-(id->local_num)];
+               break;
+            case ID_INFO_KIND_CELL:
+               obj_shared = mp_obj_cell_get(fastn[-(id->local_num)]);
+               break;
+            case ID_INFO_KIND_GLOBAL_EXPLICIT:
+            case ID_INFO_KIND_GLOBAL_IMPLICIT:
+            case ID_INFO_KIND_GLOBAL_IMPLICIT_ASSIGNED: {
+               nlr_buf_t nlr;
+               nlr.ret_val = NULL;
+               if (nlr_push(&nlr) == 0) {
+                  obj_shared = mp_load_global(id->qst);
+                  nlr_pop();
+               }
+               else {
+                  obj_shared = MP_OBJ_NULL;
+               }
+               break;
+            }
+            };
 
-      if (looking_for[i] == '\0') break;
-      if (looking_for[i] == '.') {
-         next_section = looking_for + i + 1;
-         break;
-      }
-
-      current_section[i] = looking_for[i];
-
-      i++;
-   }
-   current_section[i] = '\0';
-
-   mp_obj_t* /*const*/ fastn;
-   size_t n_state = code_state->n_state;
-   fastn = &code_state->state[n_state - 1];
-
-   for (int i = 0; i < scope->id_info_len; i++) {
-      id_info_t* id = &scope->id_info[i];
-
-      const char* var_name = qstr_str(id->qst);
-
-      if (strcmp(var_name, &current_section[0]) != 0) { // Not our variable
+            value = obj_shared;
+            break;
+         }
+         if (value == MP_OBJ_SENTINEL) return MP_OBJ_SENTINEL; // Not found
          continue;
       }
 
-      mp_obj_t obj_shared = MP_OBJ_NULL;
-      switch (id->kind) {
-      case ID_INFO_KIND_LOCAL:
-      case ID_INFO_KIND_FREE:
-         obj_shared = fastn[-(id->local_num)];
-         break;
-      case ID_INFO_KIND_CELL:
-         obj_shared = mp_obj_cell_get(fastn[-(id->local_num)]);
-         break;
-      case ID_INFO_KIND_GLOBAL_EXPLICIT:
-      case ID_INFO_KIND_GLOBAL_IMPLICIT:
-      case ID_INFO_KIND_GLOBAL_IMPLICIT_ASSIGNED: {
-         nlr_buf_t nlr;
-         nlr.ret_val = NULL;
-         if (nlr_push(&nlr) == 0) {
-            obj_shared = mp_load_global(id->qst);
-            nlr_pop();
-         }
-         else {
-            obj_shared = MP_OBJ_NULL;
-         }
-         break;
-      }
-      };
-
-      if (obj_shared != MP_OBJ_NULL && next_section != NULL) {
-         return find_attrib(obj_shared, next_section, lookup_buffers, type_support);
+      if (value == MP_OBJ_NULL) {
+         return MP_OBJ_SENTINEL; // Can't access on NULL
       }
 
-      lookup_output_obj(obj_shared, lookup_buffers, type_support);
-      
-      return true;
-   }
+      // Attribute names are always interned as Qstrings, so if one doesn't exist, the attribute doesn't
+      qstr attr_qstr = qstr_find_strn(&current_section[0], i);
+      if (attr_qstr == MP_QSTRnull) return MP_OBJ_SENTINEL;
 
-   return false; // Not found
+      nlr_buf_t nlr;
+      if (nlr_push(&nlr) == 0) {
+         value = mp_load_attr(value, attr_qstr);
+         nlr_pop();
+      }
+      else {
+         return MP_OBJ_SENTINEL;
+      }
+
+   } while (section != NULL);
+
+   return value;
 }
 
-bool upy_access_variable_internal(const char* var_name, lookup_buffers_t lookup_buffers, int type_support) {
+bool upy_access_variable_internal(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support) {
    mp_state_ctx_t* state_ctx = MP_STATE_REF;
    if (!state_ctx->vm.trio_has_paused) return false;
    if (state_ctx->vm.trio_access_ongoing) return false; // ! Shouldn't be possible
@@ -544,19 +530,25 @@ bool upy_access_variable_internal(const char* var_name, lookup_buffers_t lookup_
       return false;
    }
 
-   bool ret = find_variable(code_state, scope, var_name, lookup_buffers, type_support);
+   mp_obj_t ret = find_variable(code_state, scope, var_name, max_part_length);
    state_ctx->vm.trio_access_ongoing = false;
-   return ret;
+   
+   if (ret != MP_OBJ_SENTINEL) {
+      lookup_output_obj(ret, scope, lookup_printers, type_support);
+      return true;
+   }
+   else {
+      return false;
+   }
 }
 
-bool upy_access_variable(const char* var_name, lookup_buffers_t lookup_buffers, int type_support) {
+bool upy_access_variable(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support) {
    volatile int stack_dummy;
    char* prev_stack_top = MP_STATE_THREAD(stack_top);
    MP_STATE_THREAD(stack_top) = (char*)&stack_dummy; // Allows stack checks to pass
 
-   bool ret = upy_access_variable_internal(var_name, lookup_buffers, type_support);
+   bool ret = upy_access_variable_internal(var_name, max_part_length, lookup_printers, type_support);
 
-   *lookup_buffers.is_global = false; // TODO: Actually add this functionality
 
    MP_STATE_THREAD(stack_top) = prev_stack_top; // Restore proper stack checks
    return ret;
@@ -603,4 +595,118 @@ size_t upy_get_stack_trace(stack_trace_frame_t* stack_trace_frames, size_t max_f
    mp_printf(&mp_plat_print, "\r\n");
 
    return frames_used;
+}
+
+int list_attribs_on_variable(mp_obj_t var, attribute_printers_t attrib_printers, size_t max_attrib, size_t skip) {
+   size_t found = 0;
+   size_t outputted = 0;
+   
+   mp_print_t attrib_print = printer_to_mp_print(attrib_printers.attribute_printer);
+
+   // From mp_builtin_dir in modbuiltins.c
+   // Make a list of names in the given object
+   // Implemented by probing all possible qstrs with mp_load_method_maybe
+
+   // TODO: Very slow
+   size_t nqstr = QSTR_TOTAL();
+   for (size_t i = MP_QSTR_ + 1; i < nqstr; ++i) {
+      
+
+      mp_obj_t dest[2];
+      mp_load_method_protected(var, i, dest, false);
+      if (dest[0] != MP_OBJ_NULL) {
+         if (found >= skip) {
+            if (outputted == max_attrib) {
+               noinput_print(attrib_printers.overflow_printer);
+               break;
+            }
+
+            if (outputted != 0) noinput_print(attrib_printers.separator_printer);
+
+            mp_printf(&attrib_print, "%q", i);
+
+            noinput_print(attrib_printers.terminator_printer);
+
+            outputted++;
+         }
+
+         found++;
+
+         
+      }
+   }
+
+   return outputted;
+}
+
+int list_local_attribs(mp_code_state_t* code_state, scope_t* scope, attribute_printers_t attrib_printers, size_t max_attrib, size_t skip) {
+   size_t outputted = 0;
+   
+   mp_print_t attrib_print = printer_to_mp_print(attrib_printers.attribute_printer);
+
+   for (int i = 0; i < scope->id_info_len; i++) {
+      id_info_t* id = &scope->id_info[i];
+
+      if (i >= skip) {
+         if (outputted != 0) noinput_print(attrib_printers.separator_printer);
+
+         if (outputted == max_attrib) {
+            noinput_print(attrib_printers.overflow_printer);
+            break;
+         }
+
+         mp_printf(&attrib_print, "%q", id->qst);
+
+         noinput_print(attrib_printers.terminator_printer);
+
+         outputted++;
+      }
+   }
+
+   return outputted;
+}
+
+int upy_list_attributes_internal(const char* var_name, size_t max_part_length, attribute_printers_t attrib_printers, size_t max_attrib, size_t skip) {
+   mp_state_ctx_t* state_ctx = MP_STATE_REF;
+   if (!state_ctx->vm.trio_has_paused) return -1;
+   if (state_ctx->vm.trio_access_ongoing) return -1; // ! Shouldn't be possible
+   state_ctx->vm.trio_access_ongoing = true; // TODO: Proper locks
+
+   mp_code_state_t* code_state = (mp_code_state_t*)state_ctx->vm.trio_paused_code_state;
+
+   scope_t* scope = (scope_t*)state_ctx->vm.trio_paused_scope;
+   if (scope == NULL) {
+      state_ctx->vm.trio_access_ongoing = false;
+      return -1;
+   }
+
+   if (var_name[0] == '\0') {
+      int ret = list_local_attribs(code_state, scope, attrib_printers, max_attrib, skip);
+      state_ctx->vm.trio_access_ongoing = false;
+      return ret;
+   }
+
+   mp_obj_t ret = find_variable(code_state, scope, var_name, max_part_length);
+
+   if (ret != MP_OBJ_SENTINEL) {
+      int ret = list_attribs_on_variable(ret, attrib_printers, max_attrib, skip);
+      state_ctx->vm.trio_access_ongoing = false;
+      return ret;
+   }
+   else {
+      state_ctx->vm.trio_access_ongoing = false;
+      return -1;
+   }
+}
+
+int upy_list_attributes(const char* var_name, size_t max_part_length, attribute_printers_t attrib_printers, size_t max_attrib, size_t skip) {
+   volatile int stack_dummy;
+   char* prev_stack_top = MP_STATE_THREAD(stack_top);
+   MP_STATE_THREAD(stack_top) = (char*)&stack_dummy; // Allows stack checks to pass
+
+   int ret = upy_list_attributes_internal(var_name, max_part_length, attrib_printers, max_attrib, skip);
+
+
+   MP_STATE_THREAD(stack_top) = prev_stack_top; // Restore proper stack checks
+   return ret;
 }
