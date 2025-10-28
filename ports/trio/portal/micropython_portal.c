@@ -686,10 +686,10 @@ int upy_list_attributes_internal(const char* var_name, size_t max_part_length, a
       return ret;
    }
 
-   mp_obj_t ret = find_variable(code_state, scope, var_name, max_part_length);
+   mp_obj_t var = find_variable(code_state, scope, var_name, max_part_length);
 
-   if (ret != MP_OBJ_SENTINEL) {
-      int ret = list_attribs_on_variable(ret, attrib_printers, max_attrib, skip);
+   if (var != MP_OBJ_SENTINEL) {
+      int ret = list_attribs_on_variable(var, attrib_printers, max_attrib, skip);
       state_ctx->vm.trio_access_ongoing = false;
       return ret;
    }
