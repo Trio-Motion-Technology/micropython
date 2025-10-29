@@ -233,14 +233,13 @@ int mp_hal_stdin_rx_chr(void) {
     return CHAR_CTRL_C;
 }
 
-extern mp_uint_t MpHalStdoutTxStrnTrio(const char* str, size_t len);
 mp_uint_t mp_hal_stdout_tx_strn(const char *str, size_t len) {
     //MP_THREAD_GIL_EXIT(); // Doesn't do anything without (experimental) threading enabled
     //int ret = write(STDOUT_FILENO, str, len);
     //MP_THREAD_GIL_ENTER();
     //return ret < 0 ? 0 : ret; // return the number of bytes written, so in case of an error in the syscall, return 0
     // return get_hal_functions()->mp_hal_stdout_tx_strn(str, len);
-    return MpHalStdoutTxStrnTrio(str, len);
+    return MpcStdoutTxStrnCTX(str, len);
 }
 
 void mp_hal_stdout_tx_strn_cooked(const char *str, size_t len) {
@@ -251,14 +250,13 @@ void mp_hal_stdout_tx_str(const char *str) {
     mp_hal_stdout_tx_strn(str, strlen(str));
 }
 
-extern mp_uint_t MpHalTicksUsTrio(void);
 
 mp_uint_t mp_hal_ticks_us(void) {
     /*struct timeval tv;
     gettimeofday(&tv, NULL);
     return tv.tv_sec * 1000000 + tv.tv_usec;*/
     // return get_hal_functions()->mp_hal_ticks_us();
-    return MpHalTicksUsTrio();
+    return MpcTicksUs();
 }
 
 mp_uint_t mp_hal_ticks_ms(void) {
@@ -275,7 +273,6 @@ uint64_t mp_hal_time_ns(void) {
     return ((uint64_t)mp_hal_ticks_us()) * 1000;
 }
 
-extern mp_uint_t MpHalTicksCpuTrio(void);
 mp_uint_t mp_hal_ticks_cpu(void) {
     //LARGE_INTEGER value;
     //QueryPerformanceCounter(&value);
@@ -285,7 +282,7 @@ mp_uint_t mp_hal_ticks_cpu(void) {
     //return value.LowPart;
     //#endif
     // return get_hal_functions()->mp_hal_ticks_cpu();
-    return MpHalTicksCpuTrio();
+    return MpcTicksCpu();
 }
 
 
@@ -304,7 +301,6 @@ mp_uint_t mp_hal_ticks_cpu(void) {
 //}
 //#endif
 
-extern void MpHalDelayMsTrio(mp_uint_t delay);
 void mp_hal_delay_ms(mp_uint_t ms) {
     #if MICROPY_ENABLE_SCHEDULER
     mp_uint_t start = mp_hal_ticks_ms();
@@ -330,20 +326,18 @@ void mp_hal_delay_ms(mp_uint_t ms) {
        }
     }
 
-    MpHalDelayMsTrio(ms);
+    MpcDelayMs(ms);
 
     if (abort_after) nlr_jump_timeout_abort();
     #endif
 }
 
-extern upy_ctx* GetMpStateCtxTrio(void);
 mp_state_ctx_t* get_mp_state_ctx(void) {
-   return (mp_state_ctx_t*) GetMpStateCtxTrio();
+   return (mp_state_ctx_t*)MpcGetMpStateCTX();
 }
 
-extern upy_import_stat_t GetImportStatTrio(const char* path);
 mp_import_stat_t mp_import_stat(const char* path) {
-    switch (GetImportStatTrio(path)) {
+    switch (MpcGetImportStatCTX(path)) {
         case upy_import_stat_dir:
             return MP_IMPORT_STAT_DIR;
         case upy_import_stat_file:
@@ -353,9 +347,6 @@ mp_import_stat_t mp_import_stat(const char* path) {
     }
     return MP_IMPORT_STAT_NO_EXIST;
 }
-
-//extern mp_int_t MicropythonReadPythonFileLength(const char* filename);
-//extern mp_uint_t MicropythonReadPythonFileName(const char* filename, char* buf);
 
 /*
    Source file:
@@ -455,7 +446,7 @@ mp_lexer_t* mp_lexer_new_from_file(qstr filename) {
 
    const char* src_start;
    const char* src_end;
-   mp_uint_t ret = MicropythonGetTrioSrc(fname, &src_start, &src_end);
+   mp_uint_t ret = MpcGetPythonSrcCTX(fname, &src_start, &src_end);
    if (ret == -1) mp_raise_OSError(MP_EIO);
    mp_reader_t reader;
    mp_reader_new_trio_src(&reader, src_start, src_end);
@@ -474,7 +465,7 @@ void mp_reader_new_file(mp_reader_t* reader, qstr filename) {
       // Source
       const char* src_start;
       const char* src_end;
-      mp_uint_t ret = MicropythonGetTrioSrc(fname, &src_start, &src_end);
+      mp_uint_t ret = MpcGetPythonSrcCTX(fname, &src_start, &src_end);
       if (ret == -1) mp_raise_OSError(MP_EIO);
       mp_reader_new_trio_src(reader, src_start, src_end);
       return;
@@ -483,7 +474,7 @@ void mp_reader_new_file(mp_reader_t* reader, qstr filename) {
       // Object
       const char* obj_start;
       const char* obj_end;
-      mp_uint_t ret = MicropythonGetTrioObj(fname, &obj_start, &obj_end);
+      mp_uint_t ret = MpcGetPythonObjCTX(fname, &obj_start, &obj_end);
       if (ret == -1) mp_raise_OSError(MP_EIO);
       mp_reader_new_trio_obj(reader, obj_start, obj_end);
       return;

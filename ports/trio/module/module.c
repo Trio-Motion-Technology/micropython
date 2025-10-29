@@ -75,4 +75,7 @@ const mp_obj_module_t trio_cmodule = {
     .globals = (mp_obj_dict_t *)&module_globals,
 };
 
+// Somewhere in code
 MP_REGISTER_MODULE(MP_QSTR_trio, trio_cmodule);
+// qstrdefs.generated.h
+QDEF1(MP_QSTR_trio, 20645, 4, "trio")

@@ -214,9 +214,6 @@ MP_NOINLINE static mp_obj_t *build_slice_stack_allocated(byte op, mp_obj_t *sp, 
 }
 #endif
 
-extern bool MicropythonShouldPause(const char* fileName, size_t lineNo);
-extern bool MicropythonStayPaused(const char* fileName);
-
 // fastn has items in reverse order (fastn[0] is local[0], fastn[-1] is local[1], etc)
 // sp points to bottom of stack which grows up
 // returns:
@@ -359,7 +356,7 @@ outer_dispatch_loop:
                    size_t source_line = mp_bytecode_get_source_line(ip, line_info_top, bc);
                    const char* file = qstr_str(source_file);
                    
-                   if (MicropythonShouldPause(file, source_line)) {
+                   if (MpcShouldPauseCTX(file, source_line)) {
                       mp_printf(&mp_plat_print, "Python paused\r\n");
 
                       MP_STATE_VM(trio_paused_code_state) = code_state;
@@ -383,13 +380,13 @@ outer_dispatch_loop:
                       MP_STATE_VM(trio_paused_scope) = current_scope;
 
                       // Stay paused
-                      while (MicropythonStayPaused(file) && !MP_STATE_VM(vm_abort)) {
+                      while (MpcShouldStayPausedCTX(file) && !MP_STATE_VM(vm_abort)) {
                          MP_STATE_VM(trio_has_paused) = true;
-                         MpHalDelayMsTrio(5); // Don't use interruptible mp_hal sleep
+                         MpcDelayMs(5); // Don't use interruptible mp_hal sleep
                       }
                       MP_STATE_VM(trio_has_paused) = false;
                       while (MP_STATE_VM(trio_access_ongoing) && !MP_STATE_VM(vm_abort)) { // Wait for variable access to finish
-                         MpHalDelayMsTrio(5); // Don't use interruptible mp_hal sleep
+                         MpcDelayMs(5); // Don't use interruptible mp_hal sleep
                       }
 
                       if (MP_STATE_VM(vm_abort)) {

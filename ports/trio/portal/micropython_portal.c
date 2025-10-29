@@ -71,9 +71,7 @@ void noinput_print(noinput_printer_t printer) {
    printer.print(printer.data);
 }
 
-extern mp_uint_t mp_hal_stdout_tx_strn(const char* str, size_t len);
-
-void upy_compile_code(const char* filename, const char* src_start, const char* src_end) {
+void upy_compile_code_CTX(const char* filename, const char* src_start, const char* src_end) {
    mp_reader_t reader;
    mp_reader_new_trio_src(&reader, src_start, src_end);
    mp_lexer_t* lex = mp_lexer_new(qstr_from_str(filename), reader);
@@ -91,7 +89,7 @@ void upy_compile_code(const char* filename, const char* src_start, const char* s
    mp_print_t print = print_to_vstr(&vstr);
    mp_raw_code_save(&cm, &print);
 
-   MicropythonSaveTrioObj(filename, vstr.buf, vstr.len);
+   MpcSavePythonObj(filename, vstr.buf, vstr.len);
 
    vstr_clear(&vstr);
 }
@@ -171,7 +169,7 @@ static void emit_exception(mp_obj_t exc, bool compilation_error) {
 
    const char* exception_cstr = vstr_null_terminated_str(&exception_vstr);
 
-   MicropythonSetException(qstr_str(file), exception_cstr, line - 1, compilation_error);
+   MpcSetExceptionCTX(qstr_str(file), exception_cstr, line - 1, compilation_error);
 
    vstr_clear(&exception_vstr);
 }
@@ -180,10 +178,10 @@ bool upy_compile_code_no_env(const char* filename, const char* src_start, const 
    volatile int stack_dummy;
    void* stack_top = (void*)&stack_dummy;
    
-   heap_def_t hd = GetMpHeapDefTrio();
+   heap_def_t hd = MpcGetHeapDefCTX();
    gc_init(hd.start, hd.end);
    mp_init();
-   mp_cstack_init_with_top(stack_top, GetStackSizeTrio());
+   mp_cstack_init_with_top(stack_top, MpcGetStackLimit());
 
    nlr_buf_t nlr;
    nlr.ret_val = NULL;
@@ -193,7 +191,7 @@ bool upy_compile_code_no_env(const char* filename, const char* src_start, const 
    if (nlr_push(&nlr) == 0) {
       nlr_set_abort(&nlr);
 
-      upy_compile_code(filename, src_start, src_end);
+      upy_compile_code_CTX(filename, src_start, src_end);
 
       nlr_pop();
       success = true;
@@ -209,17 +207,17 @@ bool upy_compile_code_no_env(const char* filename, const char* src_start, const 
    return success;
 }
 
-void upy_init(void) {
-   heap_def_t hd = GetMpHeapDefTrio();
+void upy_init_CTX(void) {
+   heap_def_t hd = MpcGetHeapDefCTX();
    gc_init(hd.start, hd.end);
    mp_init();
 }
 
-void upy_run_debug(const char* filename, const char* src_start, const char* src_end) {
+void upy_run_debug_CTX(const char* filename, const char* src_start, const char* src_end) {
     volatile int stack_dummy;
     void* stack_top = (void*)&stack_dummy;
 
-    mp_cstack_init_with_top(stack_top, GetStackSizeTrio());
+    mp_cstack_init_with_top(stack_top, MpcGetStackLimit());
 
     MP_STATE_VM(trio_debug) = true;
 
@@ -267,11 +265,11 @@ void upy_run_debug(const char* filename, const char* src_start, const char* src_
     return;
 }
 
-void upy_run(const char* filename, const char* obj_start, const char* obj_end) {
+void upy_run_CTX(const char* filename, const char* obj_start, const char* obj_end) {
    volatile int stack_dummy;
    void* stack_top = (void*)&stack_dummy;
 
-   mp_cstack_init_with_top(stack_top, GetStackSizeTrio());
+   mp_cstack_init_with_top(stack_top, MpcGetStackLimit());
 
    mp_hal_stdout_tx_strn("Running Python in normal mode\r\n", 31);
 
@@ -362,7 +360,6 @@ void MP_WEAK __assert_func(const char* file, int line, const char* func, const c
 }
 #endif
 
-// TODO: Can execute arbitrary Python - needs to call GC
 void lookup_output_obj(mp_obj_t obj, scope_t* scope, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms) {
    // Custom type/value handling
    if (obj != MP_OBJ_NULL && type_support >= 1 && mp_obj_is_float(obj)) {
@@ -554,7 +551,7 @@ bool upy_access_variable_internal(const char* var_name, size_t max_part_length, 
    }
 }
 
-bool upy_access_variable(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms) {
+bool upy_access_variable_CTX(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms) {
    volatile int stack_dummy;
    char* prev_stack_top = MP_STATE_THREAD(stack_top);
    MP_STATE_THREAD(stack_top) = (char*)&stack_dummy; // Allows stack checks to pass
@@ -566,7 +563,7 @@ bool upy_access_variable(const char* var_name, size_t max_part_length, lookup_pr
    return ret;
 }
 
-size_t upy_get_stack_trace(stack_trace_frame_t* stack_trace_frames, size_t max_frames, bool* stack_truncated) {
+size_t upy_get_stack_trace_CTX(stack_trace_frame_t* stack_trace_frames, size_t max_frames, bool* stack_truncated) {
    mp_state_ctx_t* state_ctx = MP_STATE_REF;
    mp_code_state_t* code_state = (mp_code_state_t*)state_ctx->vm.trio_paused_code_state;
    
@@ -711,7 +708,7 @@ int upy_list_attributes_internal(const char* var_name, size_t max_part_length, a
    }
 }
 
-int upy_list_attributes(const char* var_name, size_t max_part_length, attribute_printers_t attrib_printers, size_t max_attrib, size_t skip) {
+int upy_list_attributes_CTX(const char* var_name, size_t max_part_length, attribute_printers_t attrib_printers, size_t max_attrib, size_t skip) {
    volatile int stack_dummy;
    char* prev_stack_top = MP_STATE_THREAD(stack_top);
    MP_STATE_THREAD(stack_top) = (char*)&stack_dummy; // Allows stack checks to pass

@@ -167,6 +167,7 @@
 //    3. Adds prev attribute to mp_code_state_t, allowing a stack trace to be obtained, without
 //       enabling the expensive MICROPY_PY_SYS_SETTRACE flag, or reimplementing the parts of
 //       MICROPY_PY_SYS_SETTRACE needed to get a stack trace
+
 #define MICROPY_STACKLESS (1)
 #define MICROPY_STACKLESS_STRICT (1) // Don't allow fallback to stack when OOM
 

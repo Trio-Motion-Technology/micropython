@@ -1,11 +1,13 @@
 /*
 ====================== Micropython terminology =======================
 
-Interface:
-   Currently the naming is a mess and will be looked at but in general
-   Micropython and PascalCase indicates that a function is from the
-   firmware side whereas upy and snake_case indicates that a function
-   is from the Micropython side.
+Naming conventions:
+   - snake_case functions prefixed with `upy_` are functions called by the firmware
+      -> These are suffixed with `_CTX` if they require a micropython context
+
+   - CamelCase functions prefixed with `Mpc` (MicroPython Call) are
+      firmware fucntions called by micropython
+      -> These are suffixed with `CTX` if they require a micropython context
 
 Heap:
    In Micropython this refers to an arena given to Micropython managed
@@ -93,16 +95,16 @@ typedef struct {
    void* end;
 } heap_def_t;
 
-extern mp_uint_t MpHalStdoutTxStrnTrio(const char* str, size_t len);
-extern mp_uint_t MpHalTicksUsTrio(void);
-extern mp_uint_t MpHalTicksCpuTrio(void);
-extern void MpHalDelayMsTrio(mp_uint_t delay);
-extern upy_ctx* GetMpStateCtxTrio(void);
-extern heap_def_t GetMpHeapDefTrio(void);
-extern mp_uint_t GetStackSizeTrio(void);
+extern mp_uint_t MpcStdoutTxStrnCTX(const char* str, size_t len);
+extern mp_uint_t MpcTicksUs(void);
+extern mp_uint_t MpcTicksCpu(void);
+extern void MpcDelayMs(mp_uint_t delay);
+extern upy_ctx* MpcGetMpStateCTX(void);
+extern heap_def_t MpcGetHeapDefCTX(void);
+extern mp_uint_t MpcGetStackLimit(void);
 
-extern bool MicropythonShouldPause(const char* fileName, size_t lineNo);
-extern bool MicropythonStayPaused(const char* fileName);
+extern bool MpcShouldPauseCTX(const char* fileName, size_t lineNo);
+extern bool MpcShouldStayPausedCTX(const char* fileName);
 
 typedef enum {
    upy_import_stat_dir,
@@ -110,22 +112,20 @@ typedef enum {
    upy_import_stat_no_exist,
 } upy_import_stat_t;
 
-extern upy_import_stat_t GetImportStatTrio(const char* path);
+extern upy_import_stat_t MpcGetImportStatCTX(const char* path);
 
-//extern mp_int_t MicropythonReadPythonFileLength(const char* filename);
-//extern mp_uint_t MicropythonReadPythonFileName(const char* filename, char* buf);
-extern mp_uint_t MicropythonGetTrioSrc(const char* filename, const char** outSrcStart, const char** outSrcEnd);
-extern mp_uint_t MicropythonGetTrioObj(const char* filename, const char** outObjStart, const char** outObjEnd);
+extern mp_uint_t MpcGetPythonSrcCTX(const char* filename, const char** outSrcStart, const char** outSrcEnd);
+extern mp_uint_t MpcGetPythonObjCTX(const char* filename, const char** outObjStart, const char** outObjEnd);
 
-extern mp_uint_t MicropythonSaveTrioObj(const char* filename, const char* data, size_t length);
+extern mp_uint_t MpcSavePythonObj(const char* filename, const char* data, size_t length);
 
-extern void MicropythonSetException(const char* file, const char* exception, size_t line, bool compilationError);
+extern void MpcSetExceptionCTX(const char* file, const char* exception, size_t line, bool compilationError);
 
 // Compiles Python file - must be called from within a Micropython environment
 // IMPORTANT: Handles exceptions using Micropython nlr - 
 //     if an execptions is thrown during compilation, control
 //     will not return to the calling code!
-void upy_compile_code(const char* filename, const char* src_start, const char* src_end);
+void upy_compile_code_CTX(const char* filename, const char* src_start, const char* src_end);
 
 // Compiles Python files without requiring an existing Micropython environment,
 // state, etc.
@@ -135,24 +135,24 @@ bool upy_compile_code_no_env(const char* filename, const char* src_start, const 
 
 // Initialises some state allowing the VM's abort flag to be set if needed
 // 1. Wait for process state to be READY, in this time upy_abort cannot be used
-// 2. Lock process resources, call upy_init, set active = TRUE
+// 2. Lock process resources, call upy_init_CTX, set active = TRUE
 // 3. upy_abort can now be used normally
-void upy_init(void);
+void upy_init_CTX(void);
 
 // Compiles and runs provided Python code, saving debug information as it goes.
 // Imports should always return .py files, not .mpy
 // Will output uncaught exceptions with MicropythonSetException
-// IMPORTANT: upy_init must be called first!
-void upy_run_debug(const char* file_name, const char* src_start, const char* src_end);
+// IMPORTANT: upy_init_CTX must be called first!
+void upy_run_debug_CTX(const char* file_name, const char* src_start, const char* src_end);
 
 // Runs provided Python bytecode
 // Imports should always return .mpy files, not .py
 // Will output uncaught exceptions with MicropythonSetException
-// IMPORTANT: upy_init must be called first!
-void upy_run(const char* file_name, const char* obj_start, const char* obj_end);
+// IMPORTANT: upy_init_CTX must be called first!
+void upy_run_CTX(const char* file_name, const char* obj_start, const char* obj_end);
 
 // Permanently stop the VM
-// IMPORTANT: Cannot be used before upy_init is called
+// IMPORTANT: Cannot be used before upy_init_CTX is called
 void upy_abort(upy_ctx *ctx);
 
 // TODO: Consider taking printer approach here too
@@ -170,7 +170,7 @@ typedef struct {
 // 
 // TODO: Is the posibility that a VM is stopped and restarted quickly enough after
 //    getting the stack trace that the Qstrs are invalidated a problem worth solving?
-size_t upy_get_stack_trace(stack_trace_frame_t* stack_trace_frames, size_t max_frames, bool* stack_truncated);
+size_t upy_get_stack_trace_CTX(stack_trace_frame_t* stack_trace_frames, size_t max_frames, bool* stack_truncated);
 
 // Printers used below as opposed to buffers to save memory
 //    -> Printing code not implemented on Python side for separation of concerns
@@ -219,7 +219,7 @@ typedef struct {
 //    - No dot-separated part of var_name may be longer than max_part_length. If it is, this will
 //       always return false
 //    - max_part_length bytes will be allocated on the stack - a too big value will cause a stack overflow
-bool upy_access_variable(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms);
+bool upy_access_variable_CTX(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms);
 
 typedef struct {
    // Will call:
@@ -242,6 +242,6 @@ typedef struct {
 //    - No dot-separated part of var_name may be longer than max_part_length. If it is, this will
 //       always return false
 //    - max_part_length bytes will be allocated on the stack - a too big value will cause a stack overflow
-int upy_list_attributes(const char* var_name, size_t max_part_length, attribute_printers_t attrib_printers,size_t max_attrib, size_t skip);
+int upy_list_attributes_CTX(const char* var_name, size_t max_part_length, attribute_printers_t attrib_printers,size_t max_attrib, size_t skip);
 
 #endif
