@@ -314,7 +314,25 @@ void mp_hal_delay_ms(mp_uint_t ms) {
     #else
     //msec_sleep((double)ms);
     // get_hal_functions()->mp_hal_delay_ms(ms);
+    
+    bool abort_after = false;
+    if (MP_STATE_VM(trio_debug) && MP_STATE_VM(trio_timeout_ms) != 0) {
+       if (mp_hal_ticks_ms() > MP_STATE_VM(trio_timeout_ms)) {
+          nlr_jump_timeout_abort();
+          return;
+       }
+       else {
+          mp_uint_t ttl = MP_STATE_VM(trio_timeout_ms) - mp_hal_ticks_ms();
+          if (ttl < ms) {
+             ms = ttl;
+             abort_after = true;
+          }
+       }
+    }
+
     MpHalDelayMsTrio(ms);
+
+    if (abort_after) nlr_jump_timeout_abort();
     #endif
 }
 

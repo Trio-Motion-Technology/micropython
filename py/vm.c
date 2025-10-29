@@ -37,6 +37,7 @@
 #include "py/profile.h"
 #include "py/scope.h"
 #include "py/nlr.h"
+#include "py/mphal.h"
 
 // *FORMAT-OFF*
 
@@ -332,8 +333,15 @@ outer_dispatch_loop:
             dispatch_loop:
 
 #if MICROPY_STACKLESS
-                if (MP_STATE_VM(trio_debug)) {
+                // Abort if timeout is exceeded
+                if (MP_STATE_VM(trio_debug) && MP_STATE_VM(trio_timeout_ms) != 0 && mp_hal_ticks_ms() > MP_STATE_VM(trio_timeout_ms)) {
+                    // Don't set / unset normal abort flags - there may also be a normal abort pending
+                    nlr_jump_timeout_abort();
+                }
 
+                // If this statement is run when already paused, the VM is being used
+                // by a process inspecting a paused process, so let it continue
+                if (MP_STATE_VM(trio_debug) && !MP_STATE_VM(trio_has_paused)) {
                    // TODO: Check for line change - don't always run
                    mp_code_state_t* unwind = code_state;
                    const byte* ip = unwind->fun_bc->bytecode;
@@ -377,57 +385,22 @@ outer_dispatch_loop:
                       // Stay paused
                       while (MicropythonStayPaused(file) && !MP_STATE_VM(vm_abort)) {
                          MP_STATE_VM(trio_has_paused) = true;
-                         mp_hal_delay_ms(1);
+                         MpHalDelayMsTrio(5); // Don't use interruptible mp_hal sleep
                       }
                       MP_STATE_VM(trio_has_paused) = false;
                       while (MP_STATE_VM(trio_access_ongoing) && !MP_STATE_VM(vm_abort)) { // Wait for variable access to finish
-                         mp_hal_delay_ms(1);
+                         MpHalDelayMsTrio(5); // Don't use interruptible mp_hal sleep
                       }
-
-                      // Clean up outputted variables
-                      trio_to_free_t* to_free = MP_STATE_VM(trio_to_free);
-                      while (to_free != NULL) {
-                         trio_to_free_t* next = to_free->next;
-                         vstr_clear(&to_free->str);
-                         m_del_obj(trio_to_free_t, to_free);
-                         to_free = next;
-                      }
-                      MP_STATE_VM(trio_to_free) = NULL;
-
-                      mp_printf(&mp_plat_print, "Python resumed\r\n");
 
                       if (MP_STATE_VM(vm_abort)) {
                          mp_handle_pending(true);
                       }
+
+                      mp_printf(&mp_plat_print, "Python resumed\r\n");
                    }
 
                    prev_line = source_line;
                 }
-
-                //mp_code_state_t *unwind = code_state;
-                //while (unwind != NULL) {
-                //    const byte* ip = unwind->fun_bc->bytecode;
-                //    mp_printf(&mp_plat_print, "{%d}", ip);
-                //    MP_BC_PRELUDE_SIG_DECODE(ip);
-                //    MP_BC_PRELUDE_SIZE_DECODE(ip);
-                //    const byte* line_info_top = ip + n_info;
-                //    const byte* bytecode_start = ip + n_info + n_cell;
-                //    size_t bc = unwind->ip - bytecode_start;
-                //    qstr block_name = mp_decode_uint_value(ip);
-                //    for (size_t i = 0; i < 1 + n_pos_args + n_kwonly_args; ++i) {
-                //       ip = mp_decode_uint_skip(ip);
-                //    }
-
-                //    block_name = unwind->fun_bc->context->constants.qstr_table[block_name];
-                //    qstr source_file = unwind->fun_bc->context->constants.qstr_table[0];
-                //    
-                //    size_t source_line = mp_bytecode_get_source_line(ip, line_info_top, bc);
-                //    
-                //    mp_printf(&mp_plat_print, "%q[%q]@%d->", source_file, block_name, source_line);
-                //    
-                //    unwind = unwind->prev;
-                //}
-                //mp_printf(&mp_plat_print, "\r\n");
 #endif
 
                 #if MICROPY_OPT_COMPUTED_GOTO

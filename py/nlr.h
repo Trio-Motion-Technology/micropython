@@ -182,6 +182,8 @@ MP_NORETURN void nlr_jump(void *val);
 #if MICROPY_ENABLE_VM_ABORT
 #define nlr_set_abort(buf) MP_STATE_VM(nlr_abort) = buf
 #define nlr_get_abort() MP_STATE_VM(nlr_abort)
+#define nlr_set_timeout_abort(buf) MP_STATE_VM(nlr_trio_timeout_abort) = buf
+#define nlr_get_timeout_abort() MP_STATE_VM(nlr_trio_timeout_abort)
 MP_NORETURN void nlr_jump_abort(void);
 #endif
 

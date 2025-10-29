@@ -219,7 +219,7 @@ typedef struct {
 //    - No dot-separated part of var_name may be longer than max_part_length. If it is, this will
 //       always return false
 //    - max_part_length bytes will be allocated on the stack - a too big value will cause a stack overflow
-bool upy_access_variable(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support);
+bool upy_access_variable(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms);
 
 typedef struct {
    // Will call:
@@ -242,6 +242,6 @@ typedef struct {
 //    - No dot-separated part of var_name may be longer than max_part_length. If it is, this will
 //       always return false
 //    - max_part_length bytes will be allocated on the stack - a too big value will cause a stack overflow
-int upy_list_attributes(const char* var_name, size_t max_part_length, attribute_printers_t attrib_printers, size_t max_attrib, size_t skip);
+int upy_list_attributes(const char* var_name, size_t max_part_length, attribute_printers_t attrib_printers,size_t max_attrib, size_t skip);
 
 #endif

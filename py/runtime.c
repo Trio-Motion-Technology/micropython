@@ -76,6 +76,7 @@ void mp_init(void) {
     MP_STATE_VM(trio_access_ongoing) = false;
     MP_STATE_VM(trio_has_paused) = false;
     MP_STATE_VM(trio_paused_code_state) = NULL;
+    MP_STATE_VM(trio_timeout_ms) = 0;
 
     // no pending exceptions to start with
     MP_STATE_THREAD(mp_pending_exception) = MP_OBJ_NULL;

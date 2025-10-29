@@ -126,7 +126,6 @@ static void mp_obj_print_exception_trio(const mp_print_t* print, mp_obj_t exc) {
    mp_print_str(print, "\n");
 }
 
-
 static void emit_exception(mp_obj_t exc, bool compilation_error) {
    if (compilation_error) {
       mp_hal_stdout_tx_strn("\r\nPython uncaught compilation exception:\r\n\r\n", 44);
@@ -169,7 +168,6 @@ static void emit_exception(mp_obj_t exc, bool compilation_error) {
 
    mp_printf(&print, "    ");
    mp_obj_print_helper(&print, exc, PRINT_EXC);
-   //mp_print_str(&print, "\n");
 
    const char* exception_cstr = vstr_null_terminated_str(&exception_vstr);
 
@@ -365,7 +363,7 @@ void MP_WEAK __assert_func(const char* file, int line, const char* func, const c
 #endif
 
 // TODO: Can execute arbitrary Python - needs to call GC
-void lookup_output_obj(mp_obj_t obj, scope_t* scope, lookup_printers_t lookup_printers, int type_support) {
+void lookup_output_obj(mp_obj_t obj, scope_t* scope, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms) {
    // Custom type/value handling
    if (obj != MP_OBJ_NULL && type_support >= 1 && mp_obj_is_float(obj)) {
       double flt = mp_obj_get_float_to_d(obj);
@@ -392,22 +390,36 @@ void lookup_output_obj(mp_obj_t obj, scope_t* scope, lookup_printers_t lookup_pr
 
          if (MP_OBJ_TYPE_HAS_SLOT(type, print)) {
             nlr_buf_t nlr;
+            nlr_set_timeout_abort(&nlr);
+            MP_STATE_VM(trio_timeout_ms) = mp_hal_ticks_ms() + value_timeout_ms;
+
             if (nlr_push(&nlr) == 0) {
-
                MP_OBJ_TYPE_GET_SLOT(type, print)(&value_print, obj, PRINT_STR);
-
+               noinput_print(lookup_printers.terminator_printer);
                nlr_pop();
             }
             else {
-               mp_printf(&value_print, "<%q object> [Error stringifying type]", type->name);
+               // Timeout
+               if (nlr.ret_val == NULL) {
+                  noinput_print(lookup_printers.timeout_printer);
+               }
+               else {
+                  mp_obj_t exc = (mp_obj_t)nlr.ret_val;
+                  emit_exception(exc, false);
+                  mp_printf(&value_print, "<%q object> [Error stringifying type]", type->name);
+                  noinput_print(lookup_printers.terminator_printer);
+               }
             }
+
+            MP_STATE_VM(trio_timeout_ms) = 0;
          }
          else {
             mp_printf(&value_print, "<%q object>", type->name);
+            noinput_print(lookup_printers.terminator_printer);
          }
       }
 
-      noinput_print(lookup_printers.terminator_printer);
+      
    }
    
    noinput_print(lookup_printers.separator_printer);
@@ -516,7 +528,7 @@ mp_obj_t find_variable(mp_code_state_t* code_state, scope_t* scope, const char* 
    return value;
 }
 
-bool upy_access_variable_internal(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support) {
+bool upy_access_variable_internal(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms) {
    mp_state_ctx_t* state_ctx = MP_STATE_REF;
    if (!state_ctx->vm.trio_has_paused) return false;
    if (state_ctx->vm.trio_access_ongoing) return false; // ! Shouldn't be possible
@@ -534,7 +546,7 @@ bool upy_access_variable_internal(const char* var_name, size_t max_part_length, 
    state_ctx->vm.trio_access_ongoing = false;
    
    if (ret != MP_OBJ_SENTINEL) {
-      lookup_output_obj(ret, scope, lookup_printers, type_support);
+      lookup_output_obj(ret, scope, lookup_printers, type_support, value_timeout_ms);
       return true;
    }
    else {
@@ -542,12 +554,12 @@ bool upy_access_variable_internal(const char* var_name, size_t max_part_length, 
    }
 }
 
-bool upy_access_variable(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support) {
+bool upy_access_variable(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms) {
    volatile int stack_dummy;
    char* prev_stack_top = MP_STATE_THREAD(stack_top);
    MP_STATE_THREAD(stack_top) = (char*)&stack_dummy; // Allows stack checks to pass
 
-   bool ret = upy_access_variable_internal(var_name, max_part_length, lookup_printers, type_support);
+   bool ret = upy_access_variable_internal(var_name, max_part_length, lookup_printers, type_support, value_timeout_ms);
 
 
    MP_STATE_THREAD(stack_top) = prev_stack_top; // Restore proper stack checks

@@ -85,4 +85,9 @@ MP_NORETURN void nlr_jump_abort(void) {
     MP_STATE_THREAD(nlr_top) = MP_STATE_VM(nlr_abort);
     nlr_jump(NULL);
 }
+
+MP_NORETURN void nlr_jump_timeout_abort(void) {
+   MP_STATE_THREAD(nlr_top) = MP_STATE_VM(nlr_trio_timeout_abort);
+   nlr_jump(NULL);
+}
 #endif

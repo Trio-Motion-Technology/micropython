@@ -269,6 +269,8 @@ typedef struct _mp_state_vm_t {
     // no CPU has non-atomic byte writes
     volatile bool vm_abort;
     nlr_buf_t *nlr_abort;
+
+    nlr_buf_t* nlr_trio_timeout_abort;
     #endif
 
     #if MICROPY_PY_THREAD_GIL
@@ -287,7 +289,7 @@ typedef struct _mp_state_vm_t {
     volatile bool trio_has_paused; // Is execution paused? Can we inspect variables? - should be atomic
     void* trio_paused_code_state; // Code state when paused - only safe to access if trio_has_paused is true
     void* trio_paused_scope; // Code scope when paused - only safe to access if trio_has_paused is true
-    trio_to_free_t* trio_to_free; // List of pointers to free when resuming execution
+    uint64_t trio_timeout_ms; // Timeout for the current execution - 0 means no timeout
 } mp_state_vm_t;
 
 // This structure holds state that is specific to a given thread. Everything
