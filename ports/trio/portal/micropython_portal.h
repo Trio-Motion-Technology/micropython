@@ -87,7 +87,7 @@ mpconfig.h:
 
 // Representation of mp_state_ctx_t 692 bytes - aligned to 4 bytes
 typedef struct {
-    mp_uint_t __dummy[2048 / sizeof(mp_uint_t)];
+    mp_uint_t __dummy[700 / sizeof(mp_uint_t)];
 } upy_ctx;
 
 typedef struct {
@@ -103,7 +103,7 @@ extern upy_ctx* MpcGetMpStateCTX(void);
 extern heap_def_t MpcGetHeapDefCTX(void);
 extern mp_uint_t MpcGetStackLimit(void);
 
-extern bool MpcShouldPauseCTX(const char* fileName, size_t lineNo);
+extern bool MpcShouldPauseCTX(const char* fileName, size_t lineNo, const void* ip);
 extern bool MpcShouldStayPausedCTX(const char* fileName);
 
 typedef enum {

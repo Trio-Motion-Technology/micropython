@@ -339,6 +339,8 @@ outer_dispatch_loop:
                 // If this statement is run when already paused, the VM is being used
                 // by a process inspecting a paused process, so let it continue
                 if (MP_STATE_VM(trio_debug) && !MP_STATE_VM(trio_has_paused)) {
+                   const void* a_ip = (const void*)ip;
+
                    // TODO: Check for line change - don't always run
                    mp_code_state_t* unwind = code_state;
                    const byte* ip = unwind->fun_bc->bytecode;
@@ -356,7 +358,7 @@ outer_dispatch_loop:
                    size_t source_line = mp_bytecode_get_source_line(ip, line_info_top, bc);
                    const char* file = qstr_str(source_file);
                    
-                   if (MpcShouldPauseCTX(file, source_line)) {
+                   if (MpcShouldPauseCTX(file, source_line, a_ip)) {
                       mp_printf(&mp_plat_print, "Python paused\r\n");
 
                       MP_STATE_VM(trio_paused_code_state) = code_state;
@@ -379,7 +381,7 @@ outer_dispatch_loop:
 
                       MP_STATE_VM(trio_paused_scope) = current_scope;
 
-                      // Stay paused
+                      // Stay paused - while paused the timeout parameter might be set which this must ignore
                       while (MpcShouldStayPausedCTX(file) && !MP_STATE_VM(vm_abort)) {
                          MP_STATE_VM(trio_has_paused) = true;
                          MpcDelayMs(5); // Don't use interruptible mp_hal sleep

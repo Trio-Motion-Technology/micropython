@@ -282,12 +282,13 @@ void upy_run_CTX(const char* filename, const char* obj_start, const char* obj_en
       nlr_buf_t nlr;
       if (nlr_push(&nlr) == 0) {
          mp_reader_t reader;
-         // Can use builtin mem reader as obj format is not special
+         // Can use builtin mem reader as obj format is not special but this allows future changes
          mp_reader_new_trio_obj(&reader, obj_start, obj_end);
 
          mp_compiled_module_t cm;
          mp_obj_t module_obj = mp_obj_new_module(MP_QSTR___main__);
          cm.context = module_obj;
+         cm.context->module.globals = mp_globals_get();
          mp_raw_code_load(&reader, &cm);
 
          mp_obj_t module_fun = mp_make_function_from_proto_fun(cm.rc, cm.context, NULL);

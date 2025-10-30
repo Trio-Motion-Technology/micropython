@@ -430,7 +430,6 @@ static void mp_reader_trio_obj_close(void* data) {
    m_del_obj(mp_reader_trio_obj_t, reader);
 }
 
-// Skips over Trio source bytes and inserts newlines
 void mp_reader_new_trio_obj(mp_reader_t* reader, const char* src_start, const char* src_end) {
    mp_reader_trio_obj_t* rm = m_new_obj(mp_reader_trio_obj_t);
    rm->beg = src_start;
