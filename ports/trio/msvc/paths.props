@@ -8,7 +8,7 @@
 
          micropython [PyBaseDir]
           |- ...
-          |- ports/trio [PyWinDir]
+          |- ports/trio [PyTrioDir]
                     |- ...
                     |- micropython.exe
                     |- build-standard [PyBuildDir]
@@ -26,13 +26,13 @@
 
     <!-- Start from project root -->
     <PyBaseDir>$([System.IO.Path]::GetFullPath(`$(MSBuildThisFileDirectory)..\..\..`))\</PyBaseDir>
-    <PyWinDir>$(PyBaseDir)ports\trio\</PyWinDir>
-    <PyBuildDir Condition="'$(PyBuildDir)' == ''">$(PyWinDir)$(PyBuild)\</PyBuildDir>
-    <PyVariantDir Condition="'$(PyVariantDir)' == ''">$(PyWinDir)variants\$(PyVariant)\</PyVariantDir>
+    <PyTrioDir>$(PyBaseDir)ports\trio\</PyTrioDir>
+    <PyBuildDir Condition="'$(PyBuildDir)' == ''">$(PyTrioDir)$(PyBuild)\</PyBuildDir>
+    <PyVariantDir Condition="'$(PyVariantDir)' == ''">$(PyTrioDir)variants\$(PyVariant)\</PyVariantDir>
     <PyTargetDir Condition="'$(PyTargetDir)' == ''">$(PyBuildDir)</PyTargetDir>
 
     <!-- All include directories needed for uPy -->
-    <PyIncDirs>$(PyIncDirs);$(PyBaseDir);$(PyWinDir);$(PyBuildDir);$(PyWinDir)msvc;$(PyVariantDir)</PyIncDirs>
+    <PyIncDirs>$(PyIncDirs);$(SolutionDir)SimulatorLib\srcMC464\Python\inc;$(PyBaseDir);$(PyTrioDir);$(PyBuildDir);$(PyTrioDir)msvc;$(PyTrioDir)portal;$(PyVariantDir)</PyIncDirs>
 
     <!-- Within PyBuildDir different subdirectories are used based on configuration and platform.
          By default these are chosen based on the Configuration and Platform properties, but

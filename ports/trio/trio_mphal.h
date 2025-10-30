@@ -27,10 +27,9 @@
 #ifndef TRIO_MPHAL_H
 #define TRIO_MPHAL_H
 
-#include "mpconfigport.h"
+#include "py/mpconfig.h"
 
 // #include "sleep.h"
-#include "portal/micropython_portal.h"
 #include "py/reader.h"
 
 #include <errno.h>

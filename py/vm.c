@@ -39,6 +39,10 @@
 #include "py/nlr.h"
 #include "py/mphal.h"
 
+#ifndef MP_CROSS_COMPILER_BUILD
+#include "PythonInterface.h"
+#endif
+
 // *FORMAT-OFF*
 
 #if 0

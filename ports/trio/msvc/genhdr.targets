@@ -58,7 +58,7 @@ using(var outFile = System.IO.File.CreateText(OutputFile)) {
 
   <!-- If any of these changed we'll force all qstrs to be generated again-->
   <ItemGroup>
-    <QstrDependencies Include="$(PyWinDir)mpconfigport.h;$(PySrcDir)mpconfig.h;$(PySrcDir)makeqstrdata.py"/>
+    <QstrDependencies Include="$(PyTrioDir)mpconfigport.h;$(PySrcDir)mpconfig.h;$(PySrcDir)makeqstrdata.py"/>
   </ItemGroup>
 
   <!-- Preprocess changed files, concatenate and feed into makeqstrdefs.py split/cat-->
@@ -172,7 +172,7 @@ using(var outFile = System.IO.File.CreateText(OutputFile)) {
         <PreprocessorDefinitions>MICROPY_MODULE_FROZEN_MPY=1;MICROPY_QSTR_EXTRA_POOL=mp_qstr_frozen_const_pool;MPZ_DIG_SIZE=16;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       </ClCompile>
     </ItemGroup>
-    <Exec Command="$(PyPython) $(PyBaseDir)tools\makemanifest.py -v MPY_DIR=$(PyBaseDir) -v MPY_LIB_DIR=$(PyBaseDir)/lib/micropython-lib -v PORT_DIR=$(PyWinDir) -o $(PyBuildDir)frozen_content.c -b $(PyBuildDir) $(FrozenManifest)"/>
+    <Exec Command="$(PyPython) $(PyBaseDir)tools\makemanifest.py -v MPY_DIR=$(PyBaseDir) -v MPY_LIB_DIR=$(PyBaseDir)/lib/micropython-lib -v PORT_DIR=$(PyTrioDir) -o $(PyBuildDir)frozen_content.c -b $(PyBuildDir) $(FrozenManifest)"/>
     <WriteLinesToFile File="$(TLogLocation)frozen.read.1.tlog" Lines="$(FrozenManifest)" Overwrite="True"/>
   </Target>
 

@@ -15,6 +15,17 @@
 #include "py/bc.h"
 #include "py/persistentcode.h"
 
+#include "micropython_portal.h"
+
+#ifndef CASSERT
+#define CASSERT(name, exp) typedef int static_assert##name [(exp) ? 1 : -1];
+#endif
+
+// Make compilation fail if upy_ctx is too small or not aligned
+CASSERT(
+   upy_ctx_correct_size_and_alignment,
+   sizeof(upy_ctx) == sizeof(mp_state_ctx_t) && sizeof(upy_ctx) % sizeof(uint64_t) == 0
+);
 
 void vstr_add_str_void(void* data, const char* str, size_t len) {
    vstr_add_strn((vstr_t*)data, str, len);
@@ -27,6 +38,7 @@ mp_print_t print_to_vstr(vstr_t* vstr) {
    return print;
 }
 
+/*
 typedef struct {
    char* buffer;
    size_t current_offset;
@@ -59,6 +71,7 @@ mp_print_t print_to_buffer(buffer_data_t* buffer_data) {
    print.print_strn = buffer_add_str_void;
    return print;
 }
+*/
 
 mp_print_t printer_to_mp_print(printer_t printer) {
    return (mp_print_t) {

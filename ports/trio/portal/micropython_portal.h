@@ -76,50 +76,7 @@ mpconfig.h:
 #ifndef MICROPYTHON_PORTAL_H
 #define MICROPYTHON_PORTAL_H
 
-#include <stdlib.h>
-#include <stdbool.h>
-
-#include "../mpconfigtypes.h"
-
-// TODO: This is very janky but we can't include mp_state_ctx_t
-// directly as it uses Micropython imports (e.g. py/xyz), not
-// Trio firmware ones.
-
-// Representation of mp_state_ctx_t 692 bytes - aligned to 4 bytes
-typedef struct {
-    mp_uint_t __dummy[700 / sizeof(mp_uint_t)];
-} upy_ctx;
-
-typedef struct {
-   void* start;
-   void* end;
-} heap_def_t;
-
-extern mp_uint_t MpcStdoutTxStrnCTX(const char* str, size_t len);
-extern mp_uint_t MpcTicksUs(void);
-extern mp_uint_t MpcTicksCpu(void);
-extern void MpcDelayMs(mp_uint_t delay);
-extern upy_ctx* MpcGetMpStateCTX(void);
-extern heap_def_t MpcGetHeapDefCTX(void);
-extern mp_uint_t MpcGetStackLimit(void);
-
-extern bool MpcShouldPauseCTX(const char* fileName, size_t lineNo, const void* ip);
-extern bool MpcShouldStayPausedCTX(const char* fileName);
-
-typedef enum {
-   upy_import_stat_dir,
-   upy_import_stat_file,
-   upy_import_stat_no_exist,
-} upy_import_stat_t;
-
-extern upy_import_stat_t MpcGetImportStatCTX(const char* path);
-
-extern mp_uint_t MpcGetPythonSrcCTX(const char* filename, const char** outSrcStart, const char** outSrcEnd);
-extern mp_uint_t MpcGetPythonObjCTX(const char* filename, const char** outObjStart, const char** outObjEnd);
-
-extern mp_uint_t MpcSavePythonObj(const char* filename, const char* data, size_t length);
-
-extern void MpcSetExceptionCTX(const char* file, const char* exception, size_t line, bool compilationError);
+#include <PythonInterface.h>
 
 // Compiles Python file - must be called from within a Micropython environment
 // IMPORTANT: Handles exceptions using Micropython nlr - 
@@ -155,13 +112,6 @@ void upy_run_CTX(const char* file_name, const char* obj_start, const char* obj_e
 // IMPORTANT: Cannot be used before upy_init_CTX is called
 void upy_abort(upy_ctx *ctx);
 
-// TODO: Consider taking printer approach here too
-typedef struct {
-   const char* block_name;
-   const char* file;
-   size_t line;
-} stack_trace_frame_t;
-
 // Gets the stack trace
 // IMPORTANT:
 //    - The VM must be paused
@@ -172,46 +122,7 @@ typedef struct {
 //    getting the stack trace that the Qstrs are invalidated a problem worth solving?
 size_t upy_get_stack_trace_CTX(stack_trace_frame_t* stack_trace_frames, size_t max_frames, bool* stack_truncated);
 
-// Printers used below as opposed to buffers to save memory
-//    -> Printing code not implemented on Python side for separation of concerns
 
-typedef struct {
-   void(*print)(void* data);
-   void* data;
-} noinput_printer_t;
-
-typedef struct {
-   void(*print_flt)(void* data, double value);
-   void* data;
-} float_printer_t;
-
-typedef struct {
-   void(*print_strn)(void* data, const char* str, size_t len);
-   void* data;
-} printer_t;
-
-typedef struct {
-   // Will call:
-   //    1. type_printer
-   //    2. terminator_printer
-   //    3. separator_printer
-   //    4. value_printer
-   //    5. terminator_printer
-   //    6. separator_printer
-   //    7. scope_printer
-   //    8. terminator_printer
-   //
-   // For supported types, steps 1-5 will be replaced by one call to [type]_printer
-   printer_t type_printer;
-   printer_t value_printer;
-   printer_t scope_printer;
-   noinput_printer_t terminator_printer;
-   noinput_printer_t separator_printer;
-   noinput_printer_t timeout_printer; // Will be called instead of terminator_printer on timeout
-
-   // Type specific
-   float_printer_t float_printer;
-} lookup_printers_t;
 
 // Accesses a variable in the current or global scope. 
 // IMPORTANT:
@@ -221,20 +132,6 @@ typedef struct {
 //    - max_part_length bytes will be allocated on the stack - a too big value will cause a stack overflow
 bool upy_access_variable_CTX(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms);
 
-typedef struct {
-   // Will call:
-   //    1. attribute_printer
-   //    2. terminator_printer
-   //    -- Stops here if no more attributes
-   //    -- Jumps to overflow_printer if max_attrib exceeded
-   //    3. separator_printer
-   //    4. loop
-   printer_t attribute_printer;
-   noinput_printer_t separator_printer;
-   noinput_printer_t terminator_printer;
-
-   noinput_printer_t overflow_printer;
-} attribute_printers_t;
 
 // Lists the attributes on a variable. Will return 0 if the value has no attributes, and -1 if the value couldn't be found.
 // Important:

@@ -33,7 +33,7 @@
 #include "py/lexer.h"
 #include "py/mperrno.h"
 
-#include "portal/micropython_portal.h"
+#include <PythonInterface.h>
 
 // static HalFunctions static_hal_functions;
 

@@ -23,18 +23,12 @@
     <RootNamespace>micropython</RootNamespace>
     <ReadOnlyProject>true</ReadOnlyProject>
   </PropertyGroup>
-  <!-- <PropertyGroup>
-    <BuildInParallel>false</BuildInParallel>
-    <CL_MPCount>1</CL_MPCount>
-  </PropertyGroup> -->
   <PropertyGroup>
     <PreferredToolArchitecture>x86</PreferredToolArchitecture>
     <TrackFileAccess>true</TrackFileAccess>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <!-- <ConfigurationType>StaticLibrary</ConfigurationType> -->
-    <!-- <ConfigurationType>Application</ConfigurationType> -->
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
   </PropertyGroup>
@@ -80,36 +74,24 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <DisableSpecificWarnings>4034</DisableSpecificWarnings>
-      <!-- <MultiProcessorCompilation>false</MultiProcessorCompilation>
-      <WholeProgramOptimization>false</WholeProgramOptimization>
-      <AdditionalOptions>/showIncludes /verbosity:diagnostic %(AdditionalOptions)</AdditionalOptions> -->
     </ClCompile>
     <Link />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <DisableSpecificWarnings>4034</DisableSpecificWarnings>
-      <!-- <MultiProcessorCompilation>false</MultiProcessorCompilation>
-      <WholeProgramOptimization>false</WholeProgramOptimization>
-      <AdditionalOptions>/showIncludes /verbosity:diagnostic %(AdditionalOptions)</AdditionalOptions> -->
     </ClCompile>
     <Link />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <DisableSpecificWarnings>4034</DisableSpecificWarnings>
-      <!-- <MultiProcessorCompilation>false</MultiProcessorCompilation>
-      <WholeProgramOptimization>false</WholeProgramOptimization>
-      <AdditionalOptions>/showIncludes /verbosity:diagnostic %(AdditionalOptions)</AdditionalOptions> -->
     </ClCompile>
     <Link />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <DisableSpecificWarnings>4034</DisableSpecificWarnings>
-      <!-- <MultiProcessorCompilation>false</MultiProcessorCompilation>
-      <WholeProgramOptimization>false</WholeProgramOptimization>
-      <AdditionalOptions>/showIncludes /verbosity:diagnostic %(AdditionalOptions)</AdditionalOptions> -->
     </ClCompile>
     <Link />
   </ItemDefinitionGroup>
@@ -122,10 +104,7 @@
     <ClCompile Include="$(PyBaseDir)ports\trio\*.c" />
     <ClCompile Include="$(PyBaseDir)ports\trio\msvc\*.c" />
     <ClCompile Include="$(PyBaseDir)ports\trio\portal\*.c" />
-    <ClCompile Include="$(PyBaseDir)ports\trio\module\module.c" />
-    <!-- <ClCompile Include="$(PyBaseDir)ports\unix\gccollect.c"/> -->
-    <!-- <ClCompile Include="$(PyBaseDir)ports\unix\input.c" />
-    <ClCompile Include="$(PyBaseDir)ports\unix\main.c" /> -->
+    <ClCompile Include="$(PyBaseDir)ports\trio\module\*.c" />
     <ClCompile Include="$(PyVariantDir)*.c" />
   </ItemGroup>
   <ItemGroup>
@@ -141,7 +120,6 @@
   <Import Project="msvc/genhdr.targets" />
   <Import Project="$(CustomPropsFile)" Condition="exists('$(CustomPropsFile)')" />
   <Target Name="GenerateMicroPythonSources" BeforeTargets="BuildGenerateSources" DependsOnTargets="GenerateHeaders">
-    <!-- <Target Name="GenerateMicroPythonSources" BeforeTargets="BuildGenerateSources" DependsOnTargets="GenerateHeaders;FreezeModules"> -->
   </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
