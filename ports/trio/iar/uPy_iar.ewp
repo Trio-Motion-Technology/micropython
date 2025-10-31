@@ -1474,6 +1474,6 @@
         <name>$PROJ_DIR$\..\..\..\ports\trio\trio_mphal.c</name>
     </file>
     <file>
-        <name>$PROJ_DIR$\..\..\..\ports\trio\portal\micropython_portal.c</name>
+        <name>$PROJ_DIR$\..\..\..\ports\trio\portal\upy_interface.c</name>
     </file>
 </project>

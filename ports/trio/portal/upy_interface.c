@@ -15,7 +15,7 @@
 #include "py/bc.h"
 #include "py/persistentcode.h"
 
-#include "micropython_portal.h"
+#include "upy_interface.h"
 
 #ifndef CASSERT
 #define CASSERT(name, exp) typedef int static_assert##name [(exp) ? 1 : -1];
@@ -24,7 +24,7 @@
 // Make compilation fail if upy_ctx is too small or not aligned
 CASSERT(
    upy_ctx_correct_size_and_alignment,
-   sizeof(upy_ctx) == sizeof(mp_state_ctx_t) && sizeof(upy_ctx) % sizeof(uint64_t) == 0
+   sizeof(upy_ctx) == sizeof(mp_state_ctx_t) && alignof(upy_ctx) % alignof(uint64_t) == 0
 );
 
 void vstr_add_str_void(void* data, const char* str, size_t len) {

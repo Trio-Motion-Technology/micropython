@@ -70,9 +70,6 @@ mpconfig.h:
    defaults.
 */
 
-// TODO: Clearly mark which functions require being run from a thread
-//    with a Micropython context
-
 #ifndef MICROPYTHON_PORTAL_H
 #define MICROPYTHON_PORTAL_H
 
@@ -120,6 +117,7 @@ void upy_abort(upy_ctx *ctx);
 // 
 // TODO: Is the posibility that a VM is stopped and restarted quickly enough after
 //    getting the stack trace that the Qstrs are invalidated a problem worth solving?
+//       -> Could be solved by printers
 size_t upy_get_stack_trace_CTX(stack_trace_frame_t* stack_trace_frames, size_t max_frames, bool* stack_truncated);
 
 
