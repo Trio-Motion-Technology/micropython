@@ -28,7 +28,7 @@
 
 // Variant-specific definitions.
 // #include "mpconfigvariant.h"
-#include "portal/mptypes.h"
+#include "interface/mptypes.h"
 
 //#define MICROPY_EXPOSE_MP_COMPILE_TO_RAW_CODE (1)
 

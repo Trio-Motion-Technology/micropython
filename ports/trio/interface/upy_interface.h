@@ -122,13 +122,14 @@ size_t upy_get_stack_trace_CTX(stack_trace_frame_t* stack_trace_frames, size_t m
 
 
 
-// Accesses a variable in the current or global scope. 
+// Accesses a variable in the current or global scope. See BASIC LOOKUP implementation for details
+// which types are covered by which type support version
 // IMPORTANT:
 //    - The VM must be paused
 //    - No dot-separated part of var_name may be longer than max_part_length. If it is, this will
 //       always return false
 //    - max_part_length bytes will be allocated on the stack - a too big value will cause a stack overflow
-bool upy_access_variable_CTX(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms);
+bool upy_access_variable_CTX(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int32_t type_support, size_t value_timeout_ms);
 
 
 // Lists the attributes on a variable. Will return 0 if the value has no attributes, and -1 if the value couldn't be found.

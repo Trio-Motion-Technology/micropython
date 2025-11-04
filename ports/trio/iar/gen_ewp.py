@@ -9,7 +9,7 @@ INCLUDE_DIRS = [
     "",
     "extmod",
     "ports/trio",
-    "ports/trio/portal",
+    "ports/trio/interface",
     "ports/trio/msvc",
     "ports/trio/build-standard",
 ]
@@ -17,7 +17,7 @@ INCLUDE_DIRS = [
 CFILE_SEARCH_DIRS = [
     "py",
     "ports/trio",
-    "ports/trio/portal",
+    "ports/trio/interface",
     "ports/trio/msvc",
 ]
 

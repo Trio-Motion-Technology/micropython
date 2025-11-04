@@ -3593,10 +3593,10 @@
         <name>$PROJ_DIR$\..\..\..\py\map.c</name>
     </file>
     <file>
-        <name>$PROJ_DIR$\..\portal\upy_interface.c</name>
+        <name>$PROJ_DIR$\..\interface\upy_interface.c</name>
     </file>
     <file>
-        <name>$PROJ_DIR$\..\portal\upy_interface.h</name>
+        <name>$PROJ_DIR$\..\interface\upy_interface.h</name>
     </file>
     <file>
         <name>$PROJ_DIR$\..\..\..\py\misc.h</name>

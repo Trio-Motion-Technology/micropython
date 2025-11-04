@@ -22,10 +22,18 @@
 #endif
 
 // Make compilation fail if upy_ctx is too small or not aligned
+#ifdef _MSC_VER // MSVC
 CASSERT(
    upy_ctx_correct_size_and_alignment,
-   sizeof(upy_ctx) == sizeof(mp_state_ctx_t) && alignof(upy_ctx) % alignof(uint64_t) == 0
+   sizeof(upy_ctx) == sizeof(mp_state_ctx_t) && alignof(upy_ctx) % alignof(mp_state_ctx_t) == 0
 );
+#else // IAR
+CASSERT(
+   upy_ctx_correct_size_and_alignment,
+   sizeof(upy_ctx) == sizeof(mp_state_ctx_t) && __ALIGNOF__(upy_ctx) % __ALIGNOF__(uint64_t) == 0
+);
+#endif
+// TODO: GCC
 
 void vstr_add_str_void(void* data, const char* str, size_t len) {
    vstr_add_strn((vstr_t*)data, str, len);
@@ -539,7 +547,7 @@ mp_obj_t find_variable(mp_code_state_t* code_state, scope_t* scope, const char* 
    return value;
 }
 
-bool upy_access_variable_internal(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms) {
+bool upy_access_variable_internal(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int32_t type_support, size_t value_timeout_ms) {
    mp_state_ctx_t* state_ctx = MP_STATE_REF;
    if (!state_ctx->vm.trio_has_paused) return false;
    if (state_ctx->vm.trio_access_ongoing) return false; // ! Shouldn't be possible
@@ -565,7 +573,7 @@ bool upy_access_variable_internal(const char* var_name, size_t max_part_length, 
    }
 }
 
-bool upy_access_variable_CTX(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int type_support, size_t value_timeout_ms) {
+bool upy_access_variable_CTX(const char* var_name, size_t max_part_length, lookup_printers_t lookup_printers, int32_t type_support, size_t value_timeout_ms) {
    volatile int stack_dummy;
    char* prev_stack_top = MP_STATE_THREAD(stack_top);
    MP_STATE_THREAD(stack_top) = (char*)&stack_dummy; // Allows stack checks to pass

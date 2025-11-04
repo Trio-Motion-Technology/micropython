@@ -103,7 +103,7 @@
     <ClCompile Include="$(PyBaseDir)shared\runtime\pyexec.c" />
     <ClCompile Include="$(PyBaseDir)ports\trio\*.c" />
     <ClCompile Include="$(PyBaseDir)ports\trio\msvc\*.c" />
-    <ClCompile Include="$(PyBaseDir)ports\trio\portal\*.c" />
+    <ClCompile Include="$(PyBaseDir)ports\trio\interface\*.c" />
     <ClCompile Include="$(PyBaseDir)ports\trio\module\*.c" />
     <ClCompile Include="$(PyVariantDir)*.c" />
   </ItemGroup>
@@ -112,7 +112,7 @@
     <ClInclude Include="@(PyExtModInclude)" />
     <ClInclude Include="$(PyBaseDir)ports\trio\*.h" />
     <ClInclude Include="$(PyBaseDir)ports\trio\msvc\*.h" />
-    <ClInclude Include="$(PyBaseDir)ports\trio\portal\*.h" />
+    <ClInclude Include="$(PyBaseDir)ports\trio\interface\*.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="micropython.rc" />

@@ -355,7 +355,7 @@
                     <state>$PROJ_DIR$\..\..\..\</state>
                     <state>$PROJ_DIR$\..\..\..\extmod</state>
                     <state>$PROJ_DIR$\..\..\..\ports\trio</state>
-                    <state>$PROJ_DIR$\..\..\..\ports\trio\portal</state>
+                    <state>$PROJ_DIR$\..\..\..\ports\trio\interface</state>
                     <state>$PROJ_DIR$\..\..\..\ports\trio\msvc</state>
                     <state>$PROJ_DIR$\..\..\..\ports\trio\build-standard</state>
                 </option>
@@ -1474,6 +1474,6 @@
         <name>$PROJ_DIR$\..\..\..\ports\trio\trio_mphal.c</name>
     </file>
     <file>
-        <name>$PROJ_DIR$\..\..\..\ports\trio\portal\upy_interface.c</name>
+        <name>$PROJ_DIR$\..\..\..\ports\trio\interface\upy_interface.c</name>
     </file>
 </project>

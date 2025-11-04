@@ -32,7 +32,7 @@
     <PyTargetDir Condition="'$(PyTargetDir)' == ''">$(PyBuildDir)</PyTargetDir>
 
     <!-- All include directories needed for uPy -->
-    <PyIncDirs>$(PyIncDirs);$(SolutionDir)SimulatorLib\srcMC464\Python\inc;$(PyBaseDir);$(PyTrioDir);$(PyBuildDir);$(PyTrioDir)msvc;$(PyTrioDir)portal;$(PyVariantDir)</PyIncDirs>
+    <PyIncDirs>$(PyIncDirs);$(SolutionDir)SimulatorLib\srcMC464\Python\inc;$(PyBaseDir);$(PyTrioDir);$(PyBuildDir);$(PyTrioDir)msvc;$(PyTrioDir)interface;$(PyVariantDir)</PyIncDirs>
 
     <!-- Within PyBuildDir different subdirectories are used based on configuration and platform.
          By default these are chosen based on the Configuration and Platform properties, but

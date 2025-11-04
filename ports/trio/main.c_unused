@@ -1,6 +1,6 @@
 #include <windows.h>
 #include <stdio.h>
-#include "portal/upy_interface.h"
+#include "interface/upy_interface.h"
 #include "win_hal.h"
 #include "trio_mphal.h"
 #include <stdlib.h>
